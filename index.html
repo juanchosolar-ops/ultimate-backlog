@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ultimate Backlog</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1: #fcfcfb;
+    --surface-2: #ffffff;
+    --page: #f9f9f7;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --gridline: #e1e0d9;
+    --border: rgba(11,11,11,0.10);
+    --good: #0ca30c;
+    --good-bg: rgba(12,163,12,0.10);
+    --star: #eda100;
+    --s1: #2a78d6; /* cine - blue */
+    --s2: #eb6834; /* musica - orange */
+    --s3: #1baf7a; /* series - aqua */
+    --s4: #4a3aa7; /* anime - violet */
+    --s5: #e87ba4; /* videojuegos - magenta */
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1: #1a1a19;
+    --surface-2: #201f1d;
+    --page: #0d0d0d;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+    --gridline: #2c2c2a;
+    --border: rgba(255,255,255,0.10);
+    --good: #0ca30c;
+    --good-bg: rgba(12,163,12,0.16);
+    --star: #c98500;
+    --s1: #3987e5;
+    --s2: #d95926;
+    --s3: #199e70;
+    --s4: #9085e9;
+    --s5: #d55181;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 28px 20px 80px; }
+
+  header.top {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 16px; flex-wrap: wrap; margin-bottom: 20px;
+  }
+  h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .subtitle { color: var(--text-secondary); font-size: 14px; margin: 0; max-width: 620px; }
+  .meta { color: var(--text-muted); font-size: 12px; margin-top: 6px; }
+  .sync-status { font-weight: 500; }
+  .sync-status.ok { color: var(--good); }
+  .sync-status.err { color: var(--text-muted); }
+  .sync-status.saving { color: var(--star); }
+
+  .theme-toggle {
+    border: 1px solid var(--border); background: var(--surface-2);
+    color: var(--text-primary); border-radius: 8px; padding: 8px 14px;
+    font-size: 13px; cursor: pointer; white-space: nowrap;
+  }
+  .theme-toggle:hover { border-color: var(--text-muted); }
+
+  /* stat tiles */
+  .stats {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+    margin-bottom: 22px;
+  }
+  @media (max-width: 800px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .tile {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px; cursor: pointer;
+    transition: border-color .15s ease, transform .1s ease;
+  }
+  .tile:hover { border-color: var(--text-muted); }
+  .tile.active { border-color: var(--tile-color); box-shadow: 0 0 0 1px var(--tile-color) inset; }
+  .tile .tile-head { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+  .tile .tile-icon { font-size: 15px; }
+  .tile .tile-value { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .tile .tile-value small { font-size: 13px; font-weight: 400; color: var(--text-muted); }
+  .meter { height: 6px; border-radius: 4px; background: var(--gridline); margin-top: 10px; overflow: hidden; }
+  .meter > span { display: block; height: 100%; border-radius: 4px; background: var(--tile-color); }
+
+  .controls {
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    margin-bottom: 18px; position: sticky; top: 0; background: var(--page);
+    padding: 10px 0; z-index: 5;
+  }
+  .search {
+    flex: 1; min-width: 180px; background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 8px; padding: 9px 12px; color: var(--text-primary); font-size: 14px;
+  }
+  .search::placeholder { color: var(--text-muted); }
+  select.filter, .toggle-btn {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+    padding: 9px 12px; color: var(--text-primary); font-size: 13px; cursor: pointer;
+  }
+  .toggle-btn.active { border-color: var(--good); color: var(--good); background: var(--good-bg); }
+
+  .note {
+    font-size: 12.5px; color: var(--text-secondary); background: var(--surface-1);
+    border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; margin-bottom: 20px;
+  }
+  .note b { color: var(--text-primary); }
+
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .item {
+    display: grid; grid-template-columns: 26px 1fr auto auto; align-items: center;
+    gap: 14px; background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 14px;
+  }
+  @media (max-width: 620px) {
+    .item { grid-template-columns: 26px 1fr; grid-template-rows: auto auto; }
+    .item .stars { grid-column: 1 / -1; justify-content: flex-start; margin-top: 4px; }
+  }
+  .item.watched { background: var(--good-bg); }
+  .chk {
+    width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--text-muted);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    background: var(--surface-2); font-size: 13px; user-select: none;
+  }
+  .item.watched .chk { background: var(--good); border-color: var(--good); color: white; }
+
+  .info .name { font-size: 14.5px; font-weight: 500; }
+  .info .sub { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+  .cat-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; }
+
+  .stars { display: flex; gap: 2px; }
+  .star-btn { font-size: 16px; cursor: pointer; color: var(--gridline); background: none; border: none; padding: 2px; line-height: 1; }
+  .star-btn.filled { color: var(--star); }
+  .item:not(.watched) .stars { opacity: 0.35; pointer-events: none; }
+
+  .year-badge {
+    font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums;
+    min-width: 40px; text-align: right;
+  }
+
+  .empty { text-align: center; color: var(--text-muted); padding: 40px 0; font-size: 14px; }
+
+  footer.foot { margin-top: 32px; font-size: 12px; color: var(--text-muted); text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Ultimate Backlog</h1>
+      <p class="subtitle">Lo mejor que el mundo tiene para ofrecer en cine, música, series, anime y videojuegos — curado a partir de rankings de consenso crítico (IMDb, AFI, Sight &amp; Sound, Rolling Stone, Metacritic, MyAnimeList, IGN).</p>
+      <div class="meta">Última actualización: 11 de agosto de 2026 &middot; <span id="totalCount">0</span> elementos &middot; <span id="syncStatus" class="sync-status">conectando...</span></div>
+    </div>
+    <button class="theme-toggle" id="themeToggle">🌙 Modo oscuro</button>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="controls">
+    <input class="search" id="search" type="text" placeholder="Buscar por nombre o autor...">
+    <select class="filter" id="catFilter">
+      <option value="all">Todas las categorías</option>
+    </select>
+    <button class="toggle-btn" id="pendingOnly">Solo pendientes</button>
+    <button class="toggle-btn" id="watchedOnly">Solo completados</button>
+  </div>
+
+  <div class="note" id="noteBox">
+    <b>Cómo funciona:</b> los cambios se guardan automáticamente en tu Google Sheet al marcar o calificar un elemento — no necesitas avisarme por chat. (Si ves "sin conexión", aún puedes explorar la lista, pero esos cambios no se guardarán hasta reconectar.)
+  </div>
+
+  <div class="list" id="list"></div>
+  <div class="empty" id="emptyState" style="display:none;">No se encontraron elementos con esos filtros.</div>
+
+  <footer class="foot">Ultimate Backlog · construido para Juan Felipe</footer>
+</div>
+
+<script>
+// URL del Apps Script Web App que lee/escribe la Google Sheet de datos.
+// Se deja vacío hasta que el deployment esté listo; si está vacío, la app
+// funciona solo como vista local (sin persistencia).
+const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbw8RcQORRD3YBgM5zHqjDt7bxtzrH87r-mCLUYnjcLv7e4Wqw3vblx1nwu92QwQvnY/exec";
+
+const ITEMS = [{"id": 1, "cat": "cine", "name": "Citizen Kane", "year": 1941, "author": "Orson Welles", "watched": false, "rating": 0}, {"id": 2, "cat": "cine", "name": "El Padrino", "year": 1972, "author": "Francis Ford Coppola", "watched": false, "rating": 0}, {"id": 3, "cat": "cine", "name": "El Padrino Parte II", "year": 1974, "author": "Francis Ford Coppola", "watched": false, "rating": 0}, {"id": 4, "cat": "cine", "name": "Cadena Perpetua", "year": 1994, "author": "Frank Darabont", "watched": false, "rating": 0}, {"id": 5, "cat": "cine", "name": "Pulp Fiction", "year": 1994, "author": "Quentin Tarantino", "watched": false, "rating": 0}, {"id": 6, "cat": "cine", "name": "La Lista de Schindler", "year": 1993, "author": "Steven Spielberg", "watched": false, "rating": 0}, {"id": 7, "cat": "cine", "name": "12 Hombres en Pugna", "year": 1957, "author": "Sidney Lumet", "watched": false, "rating": 0}, {"id": 8, "cat": "cine", "name": "El Caballero de la Noche", "year": 2008, "author": "Christopher Nolan", "watched": false, "rating": 0}, {"id": 9, "cat": "cine", "name": "Casablanca", "year": 1942, "author": "Michael Curtiz", "watched": false, "rating": 0}, {"id": 10, "cat": "cine", "name": "Vertigo", "year": 1958, "author": "Alfred Hitchcock", "watched": false, "rating": 0}, {"id": 11, "cat": "cine", "name": "Los Siete Samuráis", "year": 1954, "author": "Akira Kurosawa", "watched": false, "rating": 0}, {"id": 12, "cat": "cine", "name": "Psicosis", "year": 1960, "author": "Alfred Hitchcock", "watched": false, "rating": 0}, {"id": 13, "cat": "cine", "name": "2001: Odisea del Espacio", "year": 1968, "author": "Stanley Kubrick", "watched": false, "rating": 0}, {"id": 14, "cat": "cine", "name": "El Ocaso de una Vida (Sunset Blvd.)", "year": 1950, "author": "Billy Wilder", "watched": false, "rating": 0}, {"id": 15, "cat": "cine", "name": "Cantando Bajo la Lluvia", "year": 1952, "author": "Gene Kelly & Stanley Donen", "watched": false, "rating": 0}, {"id": 16, "cat": "cine", "name": "La Ventana Indiscreta", "year": 1954, "author": "Alfred Hitchcock", "watched": false, "rating": 0}, {"id": 17, "cat": "cine", "name": "Apocalypse Now", "year": 1979, "author": "Francis Ford Coppola", "watched": false, "rating": 0}, {"id": 18, "cat": "cine", "name": "Buenos Muchachos", "year": 1990, "author": "Martin Scorsese", "watched": false, "rating": 0}, {"id": 19, "cat": "cine", "name": "Lawrence de Arabia", "year": 1962, "author": "David Lean", "watched": false, "rating": 0}, {"id": 20, "cat": "cine", "name": "Star Wars: Una Nueva Esperanza", "year": 1977, "author": "George Lucas", "watched": false, "rating": 0}, {"id": 21, "cat": "cine", "name": "El Señor de los Anillos: La Comunidad del Anillo", "year": 2001, "author": "Peter Jackson", "watched": false, "rating": 0}, {"id": 22, "cat": "cine", "name": "El Señor de los Anillos: El Retorno del Rey", "year": 2003, "author": "Peter Jackson", "watched": false, "rating": 0}, {"id": 23, "cat": "cine", "name": "El Club de la Pelea", "year": 1999, "author": "David Fincher", "watched": false, "rating": 0}, {"id": 24, "cat": "cine", "name": "Forrest Gump", "year": 1994, "author": "Robert Zemeckis", "watched": false, "rating": 0}, {"id": 25, "cat": "cine", "name": "Parásitos", "year": 2019, "author": "Bong Joon-ho", "watched": false, "rating": 0}, {"id": 26, "cat": "cine", "name": "El Viaje de Chihiro", "year": 2001, "author": "Hayao Miyazaki", "watched": false, "rating": 0}, {"id": 27, "cat": "cine", "name": "Luces de la Ciudad", "year": 1931, "author": "Charles Chaplin", "watched": false, "rating": 0}, {"id": 28, "cat": "cine", "name": "Tiempos Modernos", "year": 1936, "author": "Charles Chaplin", "watched": false, "rating": 0}, {"id": 29, "cat": "cine", "name": "Interstellar", "year": 2014, "author": "Christopher Nolan", "watched": false, "rating": 0}, {"id": 30, "cat": "cine", "name": "Origen (Inception)", "year": 2010, "author": "Christopher Nolan", "watched": false, "rating": 0}, {"id": 31, "cat": "cine", "name": "Taxi Driver", "year": 1976, "author": "Martin Scorsese", "watched": false, "rating": 0}, {"id": 32, "cat": "cine", "name": "Sin Lugar para los Débiles", "year": 2007, "author": "Joel & Ethan Coen", "watched": false, "rating": 0}, {"id": 33, "cat": "cine", "name": "Pozos de Ambición", "year": 2007, "author": "Paul Thomas Anderson", "watched": false, "rating": 0}, {"id": 34, "cat": "cine", "name": "El Silencio de los Inocentes", "year": 1991, "author": "Jonathan Demme", "watched": false, "rating": 0}, {"id": 35, "cat": "cine", "name": "Blade Runner", "year": 1982, "author": "Ridley Scott", "watched": false, "rating": 0}, {"id": 36, "cat": "cine", "name": "Alien, el Octavo Pasajero", "year": 1979, "author": "Ridley Scott", "watched": false, "rating": 0}, {"id": 37, "cat": "cine", "name": "En Busca del Arca Perdida", "year": 1981, "author": "Steven Spielberg", "watched": false, "rating": 0}, {"id": 38, "cat": "cine", "name": "E.T., el Extraterrestre", "year": 1982, "author": "Steven Spielberg", "watched": false, "rating": 0}, {"id": 39, "cat": "cine", "name": "Tiburón", "year": 1975, "author": "Steven Spielberg", "watched": false, "rating": 0}, {"id": 40, "cat": "cine", "name": "Amadeus", "year": 1984, "author": "Milos Forman", "watched": false, "rating": 0}, {"id": 41, "cat": "cine", "name": "Los Infiltrados", "year": 2006, "author": "Martin Scorsese", "watched": false, "rating": 0}, {"id": 42, "cat": "cine", "name": "Whiplash", "year": 2014, "author": "Damien Chazelle", "watched": false, "rating": 0}, {"id": 43, "cat": "cine", "name": "La La Land", "year": 2016, "author": "Damien Chazelle", "watched": false, "rating": 0}, {"id": 44, "cat": "cine", "name": "La Tumba de las Luciérnagas", "year": 1988, "author": "Isao Takahata", "watched": false, "rating": 0}, {"id": 45, "cat": "cine", "name": "Cuentos de Tokio", "year": 1953, "author": "Yasujiro Ozu", "watched": false, "rating": 0}, {"id": 46, "cat": "cine", "name": "Ladrón de Bicicletas", "year": 1948, "author": "Vittorio De Sica", "watched": false, "rating": 0}, {"id": 47, "cat": "cine", "name": "8½", "year": 1963, "author": "Federico Fellini", "watched": false, "rating": 0}, {"id": 48, "cat": "cine", "name": "El Séptimo Sello", "year": 1957, "author": "Ingmar Bergman", "watched": false, "rating": 0}, {"id": 49, "cat": "cine", "name": "Oppenheimer", "year": 2023, "author": "Christopher Nolan", "watched": false, "rating": 0}, {"id": 50, "cat": "cine", "name": "Akira", "year": 1988, "author": "Katsuhiro Otomo", "watched": false, "rating": 0}, {"id": 51, "cat": "musica", "name": "What's Going On", "year": 1971, "author": "Marvin Gaye", "watched": false, "rating": 0}, {"id": 52, "cat": "musica", "name": "Pet Sounds", "year": 1966, "author": "The Beach Boys", "watched": false, "rating": 0}, {"id": 53, "cat": "musica", "name": "Revolver", "year": 1966, "author": "The Beatles", "watched": false, "rating": 0}, {"id": 54, "cat": "musica", "name": "Rumours", "year": 1977, "author": "Fleetwood Mac", "watched": false, "rating": 0}, {"id": 55, "cat": "musica", "name": "Abbey Road", "year": 1969, "author": "The Beatles", "watched": false, "rating": 0}, {"id": 56, "cat": "musica", "name": "Blue", "year": 1971, "author": "Joni Mitchell", "watched": false, "rating": 0}, {"id": 57, "cat": "musica", "name": "Nevermind", "year": 1991, "author": "Nirvana", "watched": false, "rating": 0}, {"id": 58, "cat": "musica", "name": "Purple Rain", "year": 1984, "author": "Prince and the Revolution", "watched": false, "rating": 0}, {"id": 59, "cat": "musica", "name": "Thriller", "year": 1982, "author": "Michael Jackson", "watched": false, "rating": 0}, {"id": 60, "cat": "musica", "name": "The Velvet Underground & Nico", "year": 1967, "author": "The Velvet Underground", "watched": false, "rating": 0}, {"id": 61, "cat": "musica", "name": "London Calling", "year": 1979, "author": "The Clash", "watched": false, "rating": 0}, {"id": 62, "cat": "musica", "name": "Songs in the Key of Life", "year": 1976, "author": "Stevie Wonder", "watched": false, "rating": 0}, {"id": 63, "cat": "musica", "name": "Kind of Blue", "year": 1959, "author": "Miles Davis", "watched": false, "rating": 0}, {"id": 64, "cat": "musica", "name": "The Dark Side of the Moon", "year": 1973, "author": "Pink Floyd", "watched": false, "rating": 0}, {"id": 65, "cat": "musica", "name": "Are You Experienced", "year": 1967, "author": "The Jimi Hendrix Experience", "watched": false, "rating": 0}, {"id": 66, "cat": "musica", "name": "Sgt. Pepper's Lonely Hearts Club Band", "year": 1967, "author": "The Beatles", "watched": false, "rating": 0}, {"id": 67, "cat": "musica", "name": "Back to Black", "year": 2006, "author": "Amy Winehouse", "watched": false, "rating": 0}, {"id": 68, "cat": "musica", "name": "Blood on the Tracks", "year": 1975, "author": "Bob Dylan", "watched": false, "rating": 0}, {"id": 69, "cat": "musica", "name": "Innervisions", "year": 1973, "author": "Stevie Wonder", "watched": false, "rating": 0}, {"id": 70, "cat": "musica", "name": "Good Kid, M.A.A.D City", "year": 2012, "author": "Kendrick Lamar", "watched": false, "rating": 0}, {"id": 71, "cat": "musica", "name": "To Pimp a Butterfly", "year": 2015, "author": "Kendrick Lamar", "watched": false, "rating": 0}, {"id": 72, "cat": "musica", "name": "Illmatic", "year": 1994, "author": "Nas", "watched": false, "rating": 0}, {"id": 73, "cat": "musica", "name": "The Chronic", "year": 1992, "author": "Dr. Dre", "watched": false, "rating": 0}, {"id": 74, "cat": "musica", "name": "Ready to Die", "year": 1994, "author": "The Notorious B.I.G.", "watched": false, "rating": 0}, {"id": 75, "cat": "musica", "name": "OK Computer", "year": 1997, "author": "Radiohead", "watched": false, "rating": 0}, {"id": 76, "cat": "musica", "name": "Kid A", "year": 2000, "author": "Radiohead", "watched": false, "rating": 0}, {"id": 77, "cat": "musica", "name": "Exile on Main St.", "year": 1972, "author": "The Rolling Stones", "watched": false, "rating": 0}, {"id": 78, "cat": "musica", "name": "Let It Bleed", "year": 1969, "author": "The Rolling Stones", "watched": false, "rating": 0}, {"id": 79, "cat": "musica", "name": "Highway 61 Revisited", "year": 1965, "author": "Bob Dylan", "watched": false, "rating": 0}, {"id": 80, "cat": "musica", "name": "Blonde on Blonde", "year": 1966, "author": "Bob Dylan", "watched": false, "rating": 0}, {"id": 81, "cat": "musica", "name": "Astral Weeks", "year": 1968, "author": "Van Morrison", "watched": false, "rating": 0}, {"id": 82, "cat": "musica", "name": "Music from Big Pink", "year": 1968, "author": "The Band", "watched": false, "rating": 0}, {"id": 83, "cat": "musica", "name": "Horses", "year": 1975, "author": "Patti Smith", "watched": false, "rating": 0}, {"id": 84, "cat": "musica", "name": "Ramones", "year": 1976, "author": "Ramones", "watched": false, "rating": 0}, {"id": 85, "cat": "musica", "name": "Never Mind the Bollocks", "year": 1977, "author": "Sex Pistols", "watched": false, "rating": 0}, {"id": 86, "cat": "musica", "name": "Doolittle", "year": 1989, "author": "Pixies", "watched": false, "rating": 0}, {"id": 87, "cat": "musica", "name": "Loveless", "year": 1991, "author": "My Bloody Valentine", "watched": false, "rating": 0}, {"id": 88, "cat": "musica", "name": "Enter the Wu-Tang (36 Chambers)", "year": 1993, "author": "Wu-Tang Clan", "watched": false, "rating": 0}, {"id": 89, "cat": "musica", "name": "The Miseducation of Lauryn Hill", "year": 1998, "author": "Lauryn Hill", "watched": false, "rating": 0}, {"id": 90, "cat": "musica", "name": "Get Rich or Die Tryin'", "year": 2003, "author": "50 Cent", "watched": false, "rating": 0}, {"id": 91, "cat": "musica", "name": "Channel Orange", "year": 2012, "author": "Frank Ocean", "watched": false, "rating": 0}, {"id": 92, "cat": "musica", "name": "Blonde", "year": 2016, "author": "Frank Ocean", "watched": false, "rating": 0}, {"id": 93, "cat": "musica", "name": "Random Access Memories", "year": 2013, "author": "Daft Punk", "watched": false, "rating": 0}, {"id": 94, "cat": "musica", "name": "Discovery", "year": 2001, "author": "Daft Punk", "watched": false, "rating": 0}, {"id": 95, "cat": "musica", "name": "Homogenic", "year": 1997, "author": "Björk", "watched": false, "rating": 0}, {"id": 96, "cat": "musica", "name": "Hounds of Love", "year": 1985, "author": "Kate Bush", "watched": false, "rating": 0}, {"id": 97, "cat": "musica", "name": "Grace", "year": 1994, "author": "Jeff Buckley", "watched": false, "rating": 0}, {"id": 98, "cat": "musica", "name": "Automatic for the People", "year": 1992, "author": "R.E.M.", "watched": false, "rating": 0}, {"id": 99, "cat": "musica", "name": "It Takes a Nation of Millions to Hold Us Back", "year": 1988, "author": "Public Enemy", "watched": false, "rating": 0}, {"id": 100, "cat": "musica", "name": "Voodoo", "year": 2000, "author": "D'Angelo", "watched": false, "rating": 0}, {"id": 101, "cat": "series", "name": "The Wire", "year": 2002, "author": "David Simon", "watched": false, "rating": 0}, {"id": 102, "cat": "series", "name": "The Sopranos", "year": 1999, "author": "David Chase", "watched": false, "rating": 0}, {"id": 103, "cat": "series", "name": "Breaking Bad", "year": 2008, "author": "Vince Gilligan", "watched": false, "rating": 0}, {"id": 104, "cat": "series", "name": "Game of Thrones", "year": 2011, "author": "David Benioff & D.B. Weiss", "watched": false, "rating": 0}, {"id": 105, "cat": "series", "name": "Mad Men", "year": 2007, "author": "Matthew Weiner", "watched": false, "rating": 0}, {"id": 106, "cat": "series", "name": "The Shield", "year": 2002, "author": "Shawn Ryan", "watched": false, "rating": 0}, {"id": 107, "cat": "series", "name": "Seinfeld", "year": 1989, "author": "Larry David & Jerry Seinfeld", "watched": false, "rating": 0}, {"id": 108, "cat": "series", "name": "Los Simpson", "year": 1989, "author": "Matt Groening", "watched": false, "rating": 0}, {"id": 109, "cat": "series", "name": "Cheers", "year": 1982, "author": "James Burrows, Glen & Les Charles", "watched": false, "rating": 0}, {"id": 110, "cat": "series", "name": "Twin Peaks", "year": 1990, "author": "David Lynch & Mark Frost", "watched": false, "rating": 0}, {"id": 111, "cat": "series", "name": "A Dos Metros Bajo Tierra", "year": 2001, "author": "Alan Ball", "watched": false, "rating": 0}, {"id": 112, "cat": "series", "name": "Deadwood", "year": 2004, "author": "David Milch", "watched": false, "rating": 0}, {"id": 113, "cat": "series", "name": "Fargo", "year": 2014, "author": "Noah Hawley", "watched": false, "rating": 0}, {"id": 114, "cat": "series", "name": "Better Call Saul", "year": 2015, "author": "Vince Gilligan & Peter Gould", "watched": false, "rating": 0}, {"id": 115, "cat": "series", "name": "La Dimensión Desconocida", "year": 1959, "author": "Rod Serling", "watched": false, "rating": 0}, {"id": 116, "cat": "series", "name": "I Love Lucy", "year": 1951, "author": "Desi Arnaz & Jess Oppenheimer", "watched": false, "rating": 0}, {"id": 117, "cat": "series", "name": "Battlestar Galactica", "year": 2004, "author": "Ronald D. Moore", "watched": false, "rating": 0}, {"id": 118, "cat": "series", "name": "Chernobyl", "year": 2019, "author": "Craig Mazin", "watched": false, "rating": 0}, {"id": 119, "cat": "series", "name": "The Office (US)", "year": 2005, "author": "Greg Daniels", "watched": false, "rating": 0}, {"id": 120, "cat": "series", "name": "Arrested Development", "year": 2003, "author": "Mitchell Hurwitz", "watched": false, "rating": 0}, {"id": 121, "cat": "series", "name": "Curb Your Enthusiasm", "year": 2000, "author": "Larry David", "watched": false, "rating": 0}, {"id": 122, "cat": "series", "name": "Succession", "year": 2018, "author": "Jesse Armstrong", "watched": false, "rating": 0}, {"id": 123, "cat": "series", "name": "El Cuento de la Criada", "year": 2017, "author": "Bruce Miller", "watched": false, "rating": 0}, {"id": 124, "cat": "series", "name": "Sherlock", "year": 2010, "author": "Mark Gatiss & Steven Moffat", "watched": false, "rating": 0}, {"id": 125, "cat": "series", "name": "Freaks and Geeks", "year": 1999, "author": "Paul Feig", "watched": false, "rating": 0}, {"id": 126, "cat": "series", "name": "Buffy la Cazavampiros", "year": 1997, "author": "Joss Whedon", "watched": false, "rating": 0}, {"id": 127, "cat": "series", "name": "Friday Night Lights", "year": 2006, "author": "Peter Berg", "watched": false, "rating": 0}, {"id": 128, "cat": "series", "name": "Los Expedientes X", "year": 1993, "author": "Chris Carter", "watched": false, "rating": 0}, {"id": 129, "cat": "series", "name": "Parks and Recreation", "year": 2009, "author": "Greg Daniels & Michael Schur", "watched": false, "rating": 0}, {"id": 130, "cat": "series", "name": "Lost", "year": 2004, "author": "J.J. Abrams, Damon Lindelof & Carlton Cuse", "watched": false, "rating": 0}, {"id": 131, "cat": "series", "name": "30 Rock", "year": 2006, "author": "Tina Fey", "watched": false, "rating": 0}, {"id": 132, "cat": "series", "name": "Rick and Morty", "year": 2013, "author": "Dan Harmon & Justin Roiland", "watched": false, "rating": 0}, {"id": 133, "cat": "series", "name": "Community", "year": 2009, "author": "Dan Harmon", "watched": false, "rating": 0}, {"id": 134, "cat": "series", "name": "Atlanta", "year": 2016, "author": "Donald Glover", "watched": false, "rating": 0}, {"id": 135, "cat": "series", "name": "Downton Abbey", "year": 2010, "author": "Julian Fellowes", "watched": false, "rating": 0}, {"id": 136, "cat": "series", "name": "House of Cards (US)", "year": 2013, "author": "Beau Willimon", "watched": false, "rating": 0}, {"id": 137, "cat": "series", "name": "Homeland", "year": 2011, "author": "Howard Gordon & Alex Gansa", "watched": false, "rating": 0}, {"id": 138, "cat": "series", "name": "Stranger Things", "year": 2016, "author": "The Duffer Brothers", "watched": false, "rating": 0}, {"id": 139, "cat": "series", "name": "Peaky Blinders", "year": 2013, "author": "Steven Knight", "watched": false, "rating": 0}, {"id": 140, "cat": "series", "name": "The Crown", "year": 2016, "author": "Peter Morgan", "watched": false, "rating": 0}, {"id": 141, "cat": "series", "name": "Hermanos de Sangre", "year": 2001, "author": "Tom Hanks & Steven Spielberg", "watched": false, "rating": 0}, {"id": 142, "cat": "series", "name": "Emergencias (ER)", "year": 1994, "author": "Michael Crichton", "watched": false, "rating": 0}, {"id": 143, "cat": "series", "name": "Hill Street Blues", "year": 1981, "author": "Steven Bochco", "watched": false, "rating": 0}, {"id": 144, "cat": "series", "name": "All in the Family", "year": 1971, "author": "Norman Lear", "watched": false, "rating": 0}, {"id": 145, "cat": "series", "name": "M*A*S*H", "year": 1972, "author": "Larry Gelbart", "watched": false, "rating": 0}, {"id": 146, "cat": "series", "name": "The Good Place", "year": 2016, "author": "Michael Schur", "watched": false, "rating": 0}, {"id": 147, "cat": "series", "name": "Ted Lasso", "year": 2020, "author": "Bill Lawrence & Jason Sudeikis", "watched": false, "rating": 0}, {"id": 148, "cat": "series", "name": "It's Always Sunny in Philadelphia", "year": 2005, "author": "Rob McElhenney", "watched": false, "rating": 0}, {"id": 149, "cat": "series", "name": "Only Fools and Horses", "year": 1981, "author": "John Sullivan", "watched": false, "rating": 0}, {"id": 150, "cat": "series", "name": "Planeta Tierra", "year": 2006, "author": "Alastair Fothergill", "watched": false, "rating": 0}, {"id": 151, "cat": "anime", "name": "Fullmetal Alchemist: Brotherhood", "year": 2009, "author": "Bones", "watched": false, "rating": 0}, {"id": 152, "cat": "anime", "name": "Frieren: Beyond Journey's End", "year": 2023, "author": "Madhouse", "watched": false, "rating": 0}, {"id": 153, "cat": "anime", "name": "Steins;Gate", "year": 2011, "author": "White Fox", "watched": false, "rating": 0}, {"id": 154, "cat": "anime", "name": "Attack on Titan", "year": 2013, "author": "Wit Studio / MAPPA", "watched": false, "rating": 0}, {"id": 155, "cat": "anime", "name": "Hunter x Hunter", "year": 2011, "author": "Madhouse", "watched": false, "rating": 0}, {"id": 156, "cat": "anime", "name": "Gintama", "year": 2006, "author": "Sunrise", "watched": false, "rating": 0}, {"id": 157, "cat": "anime", "name": "Vinland Saga", "year": 2019, "author": "Wit Studio / MAPPA", "watched": false, "rating": 0}, {"id": 158, "cat": "anime", "name": "Bleach: Thousand-Year Blood War", "year": 2022, "author": "Studio Pierrot", "watched": false, "rating": 0}, {"id": 159, "cat": "anime", "name": "Jujutsu Kaisen", "year": 2020, "author": "MAPPA", "watched": false, "rating": 0}, {"id": 160, "cat": "anime", "name": "Death Note", "year": 2006, "author": "Madhouse", "watched": false, "rating": 0}, {"id": 161, "cat": "anime", "name": "One Piece", "year": 1999, "author": "Toei Animation", "watched": false, "rating": 0}, {"id": 162, "cat": "anime", "name": "Demon Slayer", "year": 2019, "author": "Ufotable", "watched": false, "rating": 0}, {"id": 163, "cat": "anime", "name": "Cowboy Bebop", "year": 1998, "author": "Sunrise", "watched": false, "rating": 0}, {"id": 164, "cat": "anime", "name": "Neon Genesis Evangelion", "year": 1995, "author": "Gainax", "watched": false, "rating": 0}, {"id": 165, "cat": "anime", "name": "Your Lie in April", "year": 2014, "author": "A-1 Pictures", "watched": false, "rating": 0}, {"id": 166, "cat": "anime", "name": "Haikyuu!!", "year": 2014, "author": "Production I.G", "watched": false, "rating": 0}, {"id": 167, "cat": "anime", "name": "Code Geass", "year": 2006, "author": "Sunrise", "watched": false, "rating": 0}, {"id": 168, "cat": "anime", "name": "Fullmetal Alchemist", "year": 2003, "author": "Bones", "watched": false, "rating": 0}, {"id": 169, "cat": "anime", "name": "Violet Evergarden", "year": 2018, "author": "Kyoto Animation", "watched": false, "rating": 0}, {"id": 170, "cat": "anime", "name": "Naruto Shippuden", "year": 2007, "author": "Studio Pierrot", "watched": false, "rating": 0}, {"id": 171, "cat": "anime", "name": "Re:Zero − Starting Life in Another World", "year": 2016, "author": "White Fox", "watched": false, "rating": 0}, {"id": 172, "cat": "anime", "name": "Chainsaw Man", "year": 2022, "author": "MAPPA", "watched": false, "rating": 0}, {"id": 173, "cat": "anime", "name": "Mob Psycho 100", "year": 2016, "author": "Bones", "watched": false, "rating": 0}, {"id": 174, "cat": "anime", "name": "Mushishi", "year": 2005, "author": "Artland", "watched": false, "rating": 0}, {"id": 175, "cat": "anime", "name": "One Punch Man", "year": 2015, "author": "Madhouse", "watched": false, "rating": 0}, {"id": 176, "cat": "anime", "name": "Berserk", "year": 1997, "author": "OLM", "watched": false, "rating": 0}, {"id": 177, "cat": "anime", "name": "JoJo's Bizarre Adventure", "year": 2012, "author": "David Production", "watched": false, "rating": 0}, {"id": 178, "cat": "anime", "name": "Parasyte -the maxim-", "year": 2014, "author": "Madhouse", "watched": false, "rating": 0}, {"id": 179, "cat": "anime", "name": "Fruits Basket", "year": 2019, "author": "TMS Entertainment", "watched": false, "rating": 0}, {"id": 180, "cat": "anime", "name": "Spy x Family", "year": 2022, "author": "Wit Studio / CloverWorks", "watched": false, "rating": 0}, {"id": 181, "cat": "anime", "name": "Clannad: After Story", "year": 2008, "author": "Kyoto Animation", "watched": false, "rating": 0}, {"id": 182, "cat": "anime", "name": "Slam Dunk", "year": 1993, "author": "Toei Animation", "watched": false, "rating": 0}, {"id": 183, "cat": "anime", "name": "Evangelion: 3.0+1.0 Thrice Upon a Time", "year": 2021, "author": "Studio Khara", "watched": false, "rating": 0}, {"id": 184, "cat": "anime", "name": "Blue Lock", "year": 2022, "author": "8bit", "watched": false, "rating": 0}, {"id": 185, "cat": "anime", "name": "Fate/Zero", "year": 2011, "author": "Ufotable", "watched": false, "rating": 0}, {"id": 186, "cat": "anime", "name": "Dororo", "year": 2019, "author": "MAPPA", "watched": false, "rating": 0}, {"id": 187, "cat": "anime", "name": "Overlord", "year": 2015, "author": "Madhouse", "watched": false, "rating": 0}, {"id": 188, "cat": "anime", "name": "Hajime no Ippo", "year": 2000, "author": "Madhouse", "watched": false, "rating": 0}, {"id": 189, "cat": "anime", "name": "Made in Abyss", "year": 2017, "author": "Kinema Citrus", "watched": false, "rating": 0}, {"id": 190, "cat": "anime", "name": "Dandadan", "year": 2024, "author": "Science Saru", "watched": false, "rating": 0}, {"id": 191, "cat": "anime", "name": "Sword Art Online", "year": 2012, "author": "A-1 Pictures", "watched": false, "rating": 0}, {"id": 192, "cat": "anime", "name": "Oshi no Ko", "year": 2023, "author": "Doga Kobo", "watched": false, "rating": 0}, {"id": 193, "cat": "anime", "name": "Akira", "year": 1988, "author": "Katsuhiro Otomo (dir.)", "watched": false, "rating": 0}, {"id": 194, "cat": "anime", "name": "Dragon Ball Z", "year": 1989, "author": "Toei Animation", "watched": false, "rating": 0}, {"id": 195, "cat": "anime", "name": "Bleach", "year": 2004, "author": "Studio Pierrot", "watched": false, "rating": 0}, {"id": 196, "cat": "anime", "name": "The Promised Neverland", "year": 2019, "author": "CloverWorks", "watched": false, "rating": 0}, {"id": 197, "cat": "anime", "name": "Yuri!!! on Ice", "year": 2016, "author": "MAPPA", "watched": false, "rating": 0}, {"id": 198, "cat": "anime", "name": "Samurai Champloo", "year": 2004, "author": "Manglobe", "watched": false, "rating": 0}, {"id": 199, "cat": "anime", "name": "Your Name", "year": 2016, "author": "Makoto Shinkai (dir.)", "watched": false, "rating": 0}, {"id": 200, "cat": "anime", "name": "Perfect Blue", "year": 1997, "author": "Satoshi Kon (dir.)", "watched": false, "rating": 0}, {"id": 201, "cat": "videojuegos", "name": "The Legend of Zelda: Ocarina of Time", "year": 1998, "author": "Nintendo EAD", "watched": false, "rating": 0}, {"id": 202, "cat": "videojuegos", "name": "Tetris", "year": 1984, "author": "Alexey Pajitnov", "watched": false, "rating": 0}, {"id": 203, "cat": "videojuegos", "name": "Super Mario Bros.", "year": 1985, "author": "Nintendo R&D4", "watched": false, "rating": 0}, {"id": 204, "cat": "videojuegos", "name": "Half-Life 2", "year": 2004, "author": "Valve", "watched": false, "rating": 0}, {"id": 205, "cat": "videojuegos", "name": "The Legend of Zelda: Breath of the Wild", "year": 2017, "author": "Nintendo EPD", "watched": false, "rating": 0}, {"id": 206, "cat": "videojuegos", "name": "Red Dead Redemption 2", "year": 2018, "author": "Rockstar Games", "watched": false, "rating": 0}, {"id": 207, "cat": "videojuegos", "name": "The Witcher 3: Wild Hunt", "year": 2015, "author": "CD Projekt Red", "watched": false, "rating": 0}, {"id": 208, "cat": "videojuegos", "name": "Grand Theft Auto V", "year": 2013, "author": "Rockstar North", "watched": false, "rating": 0}, {"id": 209, "cat": "videojuegos", "name": "Portal 2", "year": 2011, "author": "Valve", "watched": false, "rating": 0}, {"id": 210, "cat": "videojuegos", "name": "Super Mario 64", "year": 1996, "author": "Nintendo EAD", "watched": false, "rating": 0}, {"id": 211, "cat": "videojuegos", "name": "Chrono Trigger", "year": 1995, "author": "Square", "watched": false, "rating": 0}, {"id": 212, "cat": "videojuegos", "name": "Final Fantasy VII", "year": 1997, "author": "Square", "watched": false, "rating": 0}, {"id": 213, "cat": "videojuegos", "name": "Dark Souls", "year": 2011, "author": "FromSoftware", "watched": false, "rating": 0}, {"id": 214, "cat": "videojuegos", "name": "Elden Ring", "year": 2022, "author": "FromSoftware", "watched": false, "rating": 0}, {"id": 215, "cat": "videojuegos", "name": "Minecraft", "year": 2011, "author": "Mojang", "watched": false, "rating": 0}, {"id": 216, "cat": "videojuegos", "name": "Super Metroid", "year": 1994, "author": "Nintendo R&D1", "watched": false, "rating": 0}, {"id": 217, "cat": "videojuegos", "name": "Half-Life", "year": 1998, "author": "Valve", "watched": false, "rating": 0}, {"id": 218, "cat": "videojuegos", "name": "Resident Evil 4", "year": 2005, "author": "Capcom", "watched": false, "rating": 0}, {"id": 219, "cat": "videojuegos", "name": "Doom", "year": 1993, "author": "id Software", "watched": false, "rating": 0}, {"id": 220, "cat": "videojuegos", "name": "StarCraft", "year": 1998, "author": "Blizzard Entertainment", "watched": false, "rating": 0}, {"id": 221, "cat": "videojuegos", "name": "World of Warcraft", "year": 2004, "author": "Blizzard Entertainment", "watched": false, "rating": 0}, {"id": 222, "cat": "videojuegos", "name": "Street Fighter II", "year": 1991, "author": "Capcom", "watched": false, "rating": 0}, {"id": 223, "cat": "videojuegos", "name": "Super Mario World", "year": 1990, "author": "Nintendo EAD", "watched": false, "rating": 0}, {"id": 224, "cat": "videojuegos", "name": "GoldenEye 007", "year": 1997, "author": "Rare", "watched": false, "rating": 0}, {"id": 225, "cat": "videojuegos", "name": "Metal Gear Solid", "year": 1998, "author": "Konami / Hideo Kojima", "watched": false, "rating": 0}, {"id": 226, "cat": "videojuegos", "name": "God of War", "year": 2018, "author": "Santa Monica Studio", "watched": false, "rating": 0}, {"id": 227, "cat": "videojuegos", "name": "The Last of Us", "year": 2013, "author": "Naughty Dog", "watched": false, "rating": 0}, {"id": 228, "cat": "videojuegos", "name": "BioShock", "year": 2007, "author": "Irrational Games", "watched": false, "rating": 0}, {"id": 229, "cat": "videojuegos", "name": "Shadow of the Colossus", "year": 2005, "author": "Team Ico", "watched": false, "rating": 0}, {"id": 230, "cat": "videojuegos", "name": "Portal", "year": 2007, "author": "Valve", "watched": false, "rating": 0}, {"id": 231, "cat": "videojuegos", "name": "Journey", "year": 2012, "author": "Thatgamecompany", "watched": false, "rating": 0}, {"id": 232, "cat": "videojuegos", "name": "Undertale", "year": 2015, "author": "Toby Fox", "watched": false, "rating": 0}, {"id": 233, "cat": "videojuegos", "name": "Celeste", "year": 2018, "author": "Maddy Makes Games", "watched": false, "rating": 0}, {"id": 234, "cat": "videojuegos", "name": "Hollow Knight", "year": 2017, "author": "Team Cherry", "watched": false, "rating": 0}, {"id": 235, "cat": "videojuegos", "name": "Disco Elysium", "year": 2019, "author": "ZA/UM", "watched": false, "rating": 0}, {"id": 236, "cat": "videojuegos", "name": "Baldur's Gate 3", "year": 2023, "author": "Larian Studios", "watched": false, "rating": 0}, {"id": 237, "cat": "videojuegos", "name": "Persona 5", "year": 2016, "author": "Atlus", "watched": false, "rating": 0}, {"id": 238, "cat": "videojuegos", "name": "Pokémon Rojo y Azul", "year": 1996, "author": "Game Freak", "watched": false, "rating": 0}, {"id": 239, "cat": "videojuegos", "name": "Grand Theft Auto: San Andreas", "year": 2004, "author": "Rockstar North", "watched": false, "rating": 0}, {"id": 240, "cat": "videojuegos", "name": "Silent Hill 2", "year": 2001, "author": "Konami", "watched": false, "rating": 0}, {"id": 241, "cat": "videojuegos", "name": "EarthBound", "year": 1994, "author": "Ape Inc. / HAL Laboratory", "watched": false, "rating": 0}, {"id": 242, "cat": "videojuegos", "name": "Fallout: New Vegas", "year": 2010, "author": "Obsidian Entertainment", "watched": false, "rating": 0}, {"id": 243, "cat": "videojuegos", "name": "Civilization V", "year": 2010, "author": "Firaxis Games", "watched": false, "rating": 0}, {"id": 244, "cat": "videojuegos", "name": "XCOM: Enemy Unknown", "year": 2012, "author": "Firaxis Games", "watched": false, "rating": 0}, {"id": 245, "cat": "videojuegos", "name": "Diablo II", "year": 2000, "author": "Blizzard North", "watched": false, "rating": 0}, {"id": 246, "cat": "videojuegos", "name": "Bloodborne", "year": 2015, "author": "FromSoftware", "watched": false, "rating": 0}, {"id": 247, "cat": "videojuegos", "name": "Super Smash Bros. Melee", "year": 2001, "author": "HAL Laboratory", "watched": false, "rating": 0}, {"id": 248, "cat": "videojuegos", "name": "Animal Crossing: New Horizons", "year": 2020, "author": "Nintendo EPD", "watched": false, "rating": 0}, {"id": 249, "cat": "videojuegos", "name": "Overwatch", "year": 2016, "author": "Blizzard Entertainment", "watched": false, "rating": 0}, {"id": 250, "cat": "videojuegos", "name": "Tony Hawk's Pro Skater 2", "year": 2000, "author": "Neversoft", "watched": false, "rating": 0}];
+const CATS = [{"key": "cine", "label": "Cine", "icon": "🎬", "slot": "1"}, {"key": "musica", "label": "Música", "icon": "🎵", "slot": "2"}, {"key": "series", "label": "Series", "icon": "📺", "slot": "3"}, {"key": "anime", "label": "Anime", "icon": "🎌", "slot": "4"}, {"key": "videojuegos", "label": "Videojuegos", "icon": "🎮", "slot": "5"}];
+const CAT_COLOR = { cine: 'var(--s1)', musica: 'var(--s2)', series: 'var(--s3)', anime: 'var(--s4)', videojuegos: 'var(--s5)' }; // order matches validated adjacent palette sequence
+const CAT_LABEL = {}; CATS.forEach(c => CAT_LABEL[c.key] = c.label);
+const CAT_ICON = {}; CATS.forEach(c => CAT_ICON[c.key] = c.icon);
+
+let state = {
+  cat: 'all',
+  search: '',
+  pendingOnly: false,
+  watchedOnly: false,
+};
+
+document.getElementById('totalCount').textContent = ITEMS.length;
+
+// populate category filter
+const catFilter = document.getElementById('catFilter');
+CATS.forEach(c => {
+  const opt = document.createElement('option');
+  opt.value = c.key; opt.textContent = c.icon + ' ' + c.label;
+  catFilter.appendChild(opt);
+});
+
+function renderStats() {
+  const statsEl = document.getElementById('stats');
+  statsEl.innerHTML = '';
+  const totalWatched = ITEMS.filter(i => i.watched).length;
+  const overallTile = document.createElement('div');
+  overallTile.className = 'tile' + (state.cat === 'all' ? ' active' : '');
+  overallTile.style.setProperty('--tile-color', 'var(--good)');
+  overallTile.innerHTML = `
+    <div class="tile-head"><span class="tile-icon">✅</span> Total</div>
+    <div class="tile-value">${totalWatched}<small> / ${ITEMS.length}</small></div>
+    <div class="meter"><span style="width:${(totalWatched/ITEMS.length*100).toFixed(1)}%"></span></div>
+  `;
+  overallTile.onclick = () => { state.cat = 'all'; catFilter.value = 'all'; renderAll(); };
+  statsEl.appendChild(overallTile);
+
+  CATS.forEach(c => {
+    const inCat = ITEMS.filter(i => i.cat === c.key);
+    const watched = inCat.filter(i => i.watched).length;
+    const tile = document.createElement('div');
+    tile.className = 'tile' + (state.cat === c.key ? ' active' : '');
+    tile.style.setProperty('--tile-color', CAT_COLOR[c.key]);
+    tile.innerHTML = `
+      <div class="tile-head"><span class="tile-icon">${c.icon}</span> ${c.label}</div>
+      <div class="tile-value">${watched}<small> / ${inCat.length}</small></div>
+      <div class="meter"><span style="width:${(watched/inCat.length*100).toFixed(1)}%"></span></div>
+    `;
+    tile.onclick = () => { state.cat = c.key; catFilter.value = c.key; renderAll(); };
+    statsEl.appendChild(tile);
+  });
+}
+
+function starsHtml(item) {
+  let s = '';
+  for (let i = 1; i <= 5; i++) {
+    s += `<button class="star-btn ${item.rating >= i ? 'filled' : ''}" data-id="${item.id}" data-val="${i}">★</button>`;
+  }
+  return `<div class="stars">${s}</div>`;
+}
+
+function renderList() {
+  const listEl = document.getElementById('list');
+  const q = state.search.trim().toLowerCase();
+  let filtered = ITEMS.filter(i => {
+    if (state.cat !== 'all' && i.cat !== state.cat) return false;
+    if (state.pendingOnly && i.watched) return false;
+    if (state.watchedOnly && !i.watched) return false;
+    if (q && !(i.name.toLowerCase().includes(q) || i.author.toLowerCase().includes(q))) return false;
+    return true;
+  });
+
+  listEl.innerHTML = '';
+  document.getElementById('emptyState').style.display = filtered.length ? 'none' : 'block';
+
+  filtered.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'item' + (item.watched ? ' watched' : '');
+    row.innerHTML = `
+      <div class="chk" data-id="${item.id}">${item.watched ? '✓' : ''}</div>
+      <div class="info">
+        <div class="name"><span class="cat-dot" style="background:${CAT_COLOR[item.cat]}"></span>${item.name}</div>
+        <div class="sub">${CAT_ICON[item.cat]} ${CAT_LABEL[item.cat]} &middot; ${item.author}</div>
+      </div>
+      <div class="year-badge">${item.year}</div>
+      ${starsHtml(item)}
+    `;
+    listEl.appendChild(row);
+  });
+
+  // bind events
+  listEl.querySelectorAll('.chk').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = parseInt(el.dataset.id);
+      const item = ITEMS.find(i => i.id === id);
+      item.watched = !item.watched;
+      if (!item.watched) item.rating = 0;
+      renderAll();
+      syncItem(item);
+    });
+  });
+  listEl.querySelectorAll('.star-btn').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = parseInt(el.dataset.id);
+      const val = parseInt(el.dataset.val);
+      const item = ITEMS.find(i => i.id === id);
+      item.rating = (item.rating === val) ? 0 : val;
+      renderAll();
+      syncItem(item);
+    });
+  });
+}
+
+function renderAll() {
+  renderStats();
+  renderList();
+}
+
+// --- Sincronización con Google Sheets (Apps Script Web App) ---
+const syncEl = document.getElementById('syncStatus');
+
+function setSyncStatus(mode) {
+  if (!syncEl) return;
+  syncEl.classList.remove('ok', 'err', 'saving');
+  if (mode === 'ok') { syncEl.textContent = '🟢 conectado a Google Sheets'; syncEl.classList.add('ok'); }
+  else if (mode === 'saving') { syncEl.textContent = '🟡 guardando...'; syncEl.classList.add('saving'); }
+  else if (mode === 'err') { syncEl.textContent = '⚪ sin conexión (vista local)'; syncEl.classList.add('err'); }
+  else { syncEl.textContent = 'conectando...'; }
+}
+
+async function loadFromSheet() {
+  if (!WEBAPP_URL) { setSyncStatus('err'); return; }
+  try {
+    const res = await fetch(WEBAPP_URL, { method: 'GET' });
+    if (!res.ok) throw new Error('bad response');
+    const rows = await res.json();
+    const byId = {};
+    rows.forEach(r => { byId[String(r.id)] = r; });
+    ITEMS.forEach(item => {
+      const r = byId[String(item.id)];
+      if (!r) return;
+      item.watched = (r.watched === true || r.watched === 'TRUE' || r.watched === 'true' || r.watched === 1);
+      item.rating = Number(r.rating) || 0;
+    });
+    setSyncStatus('ok');
+    renderAll();
+  } catch (err) {
+    setSyncStatus('err');
+  }
+}
+
+function syncItem(item) {
+  if (!WEBAPP_URL) { setSyncStatus('err'); return; }
+  setSyncStatus('saving');
+  // text/plain evita el preflight CORS que Apps Script no maneja bien
+  fetch(WEBAPP_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ id: item.id, watched: item.watched, rating: item.rating })
+  }).then(res => {
+    if (!res.ok) throw new Error('bad response');
+    setSyncStatus('ok');
+  }).catch(() => setSyncStatus('err'));
+}
+
+document.getElementById('search').addEventListener('input', (e) => {
+  state.search = e.target.value; renderList();
+});
+catFilter.addEventListener('change', (e) => { state.cat = e.target.value; renderAll(); });
+document.getElementById('pendingOnly').addEventListener('click', function() {
+  state.pendingOnly = !state.pendingOnly;
+  if (state.pendingOnly) state.watchedOnly = false;
+  document.getElementById('watchedOnly').classList.remove('active');
+  this.classList.toggle('active', state.pendingOnly);
+  renderList();
+});
+document.getElementById('watchedOnly').addEventListener('click', function() {
+  state.watchedOnly = !state.watchedOnly;
+  if (state.watchedOnly) state.pendingOnly = false;
+  document.getElementById('pendingOnly').classList.remove('active');
+  this.classList.toggle('active', state.watchedOnly);
+  renderList();
+});
+
+const themeToggle = document.getElementById('themeToggle');
+themeToggle.addEventListener('click', () => {
+  const root = document.documentElement;
+  const isDark = root.getAttribute('data-theme') === 'dark';
+  root.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  themeToggle.textContent = isDark ? '🌙 Modo oscuro' : '☀️ Modo claro';
+});
+
+renderAll();
+loadFromSheet();
+</script>
+</body>
+</html>
