@@ -193,6 +193,11 @@ const CATS = [{"key": "cine", "label": "Cine", "icon": "🎬", "slot": "1"}, {"k
 const CAT_COLOR = { cine: 'var(--s1)', musica: 'var(--s2)', series: 'var(--s3)', anime: 'var(--s4)', videojuegos: 'var(--s5)' }; // order matches validated adjacent palette sequence
 const CAT_LABEL = {}; CATS.forEach(c => CAT_LABEL[c.key] = c.label);
 const CAT_ICON = {}; CATS.forEach(c => CAT_ICON[c.key] = c.icon);
+// Fallback para categorías que alguien escriba a mano en la Sheet y no coincidan
+// exactamente con las 5 conocidas (cine/musica/series/anime/videojuegos).
+function catColor(c) { return CAT_COLOR[c] || 'var(--text-muted)'; }
+function catLabel(c) { return CAT_LABEL[c] || (c ? c.charAt(0).toUpperCase() + c.slice(1) : 'Otro'); }
+function catIcon(c) { return CAT_ICON[c] || '📌'; }
 
 let state = {
   cat: 'all',
@@ -231,7 +236,7 @@ function renderStats() {
     const watched = inCat.filter(i => i.watched).length;
     const tile = document.createElement('div');
     tile.className = 'tile' + (state.cat === c.key ? ' active' : '');
-    tile.style.setProperty('--tile-color', CAT_COLOR[c.key]);
+    tile.style.setProperty('--tile-color', catColor(c.key));
     tile.innerHTML = `
       <div class="tile-head"><span class="tile-icon">${c.icon}</span> ${c.label}</div>
       <div class="tile-value">${watched}<small> / ${inCat.length}</small></div>
@@ -270,8 +275,8 @@ function renderList() {
     row.innerHTML = `
       <div class="chk" data-id="${item.id}">${item.watched ? '✓' : ''}</div>
       <div class="info">
-        <div class="name"><span class="cat-dot" style="background:${CAT_COLOR[item.cat]}"></span>${item.name}</div>
-        <div class="sub">${CAT_ICON[item.cat]} ${CAT_LABEL[item.cat]} &middot; ${item.author}</div>
+        <div class="name"><span class="cat-dot" style="background:${catColor(item.cat)}"></span>${item.name}</div>
+        <div class="sub">${catIcon(item.cat)} ${catLabel(item.cat)} &middot; ${item.author}</div>
       </div>
       <div class="year-badge">${item.year}</div>
       ${starsHtml(item)}
@@ -319,20 +324,34 @@ function setSyncStatus(mode) {
   else { syncEl.textContent = 'conectando...'; }
 }
 
+function normalizeRow(r) {
+  const idNum = Number(r.id);
+  return {
+    id: isNaN(idNum) ? r.id : idNum,
+    cat: String(r.cat || '').trim().toLowerCase(),
+    name: r.name,
+    year: r.year,
+    author: r.author,
+    watched: (r.watched === true || r.watched === 'TRUE' || r.watched === 'true' || r.watched === 1),
+    rating: Number(r.rating) || 0,
+  };
+}
+
+// Modo autoservicio: el catalogo completo (nombre/anio/autor/categoria) se lee
+// de la Sheet, no solo el estado de visto/calificacion. Agregar una fila nueva
+// ahi (con id/watched/rating vacios) la hace aparecer sola en el panel.
 async function loadFromSheet() {
   if (!WEBAPP_URL) { setSyncStatus('err'); return; }
   try {
     const res = await fetch(WEBAPP_URL, { method: 'GET' });
     if (!res.ok) throw new Error('bad response');
     const rows = await res.json();
-    const byId = {};
-    rows.forEach(r => { byId[String(r.id)] = r; });
-    ITEMS.forEach(item => {
-      const r = byId[String(item.id)];
-      if (!r) return;
-      item.watched = (r.watched === true || r.watched === 'TRUE' || r.watched === 'true' || r.watched === 1);
-      item.rating = Number(r.rating) || 0;
-    });
+    if (Array.isArray(rows) && rows.length) {
+      const fresh = rows.filter(r => r && r.name && String(r.name).trim()).map(normalizeRow);
+      ITEMS.length = 0;
+      ITEMS.push(...fresh);
+    }
+    document.getElementById('totalCount').textContent = ITEMS.length;
     setSyncStatus('ok');
     renderAll();
   } catch (err) {
