@@ -472,14 +472,22 @@ function renderCharts() {
     return barRow(c.icon + ' ' + c.label, (avg / 5) * 100, avg.toFixed(1), catColor(c.key));
   }).join('');
 
-  const topRated = base.filter(i => i.watched && i.rating >= 4)
-    .sort((a, b) => b.rating - a.rating)
-    .slice(0, 8);
-  const topRatedHtml = topRated.length
-    ? '<div class="top-rated-list">' + topRated.map(i =>
-        `<div class="top-rated-row"><span>${catIcon(i.cat)} ${i.name}</span><span class="stars-mini">${'★'.repeat(i.rating)}</span></div>`
-      ).join('') + '</div>'
-    : '<div class="no-data">Todavía no has calificado nada con 4 o 5 estrellas.</div>';
+  const topRatedByCatCards = CATS.map(c => {
+    const top = base.filter(i => i.cat === c.key && i.watched && i.rating > 0)
+      .sort((a, b) => b.rating - a.rating || a.name.localeCompare(b.name))
+      .slice(0, 5);
+    const listHtml = top.length
+      ? '<div class="top-rated-list">' + top.map(i =>
+          `<div class="top-rated-row"><span>${i.name}</span><span class="stars-mini">${'★'.repeat(i.rating)}</span></div>`
+        ).join('') + '</div>'
+      : '<div class="no-data">Todavía no has calificado nada en esta categoría.</div>';
+    return `
+      <div class="chart-card">
+        <div class="chart-title">${c.icon} ${c.label} · Top 5</div>
+        <div class="chart-sub">Mejor valorados de la categoría</div>
+        ${listHtml}
+      </div>`;
+  }).join('');
 
   const hiddenCount = ITEMS.filter(i => i.hidden).length;
 
@@ -506,11 +514,7 @@ function renderCharts() {
         <div class="chart-sub">Escala de 0 a 5 estrellas</div>
         ${avgByCatRows}
       </div>
-      <div class="chart-card full">
-        <div class="chart-title">Mejor valorados</div>
-        <div class="chart-sub">4-5 estrellas, los más recientes primero</div>
-        ${topRatedHtml}
-      </div>
+      ${topRatedByCatCards}
     </div>
   `;
 }
