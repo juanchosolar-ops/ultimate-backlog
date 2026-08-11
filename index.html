@@ -218,6 +218,32 @@
   .top-rated-row { display: flex; justify-content: space-between; align-items: center; font-size: 13.5px; }
   .top-rated-row .stars-mini { color: var(--star); font-size: 12px; white-space: nowrap; margin-left: 10px; }
   .no-data { color: var(--text-muted); font-size: 13px; padding: 10px 0; }
+
+  /* random recommender */
+  .chip-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .chip {
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
+    border-radius: 999px; padding: 7px 14px; font-size: 13px; cursor: pointer; font-weight: 500;
+  }
+  .chip.active { background: var(--chip-color, var(--text-primary)); color: white; border-color: var(--chip-color, var(--text-primary)); }
+  .chip.chip-all { font-weight: 600; }
+  .roll-btn {
+    background: var(--text-primary); color: var(--page); border: none; border-radius: 10px;
+    padding: 14px 22px; font-size: 15px; font-weight: 600; cursor: pointer; width: 100%; margin-bottom: 20px;
+  }
+  .roll-btn:hover { opacity: 0.9; }
+  .random-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 22px 24px; }
+  .random-card.watched { background: var(--good-bg); }
+  .rr-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .cat-pill { font-size: 12.5px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--chip-color, var(--text-muted)); color: white; }
+  .watched-pill { font-size: 12px; color: var(--good); font-weight: 600; }
+  .pending-pill { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+  .rr-name { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .rr-sub { font-size: 13.5px; color: var(--text-secondary); margin-bottom: 16px; }
+  .rr-actions { display: flex; align-items: center; gap: 14px; }
+  .rr-actions.readonly .chk { cursor: default; }
+  .random-card:not(.watched) .stars { opacity: 0.35; pointer-events: none; }
+  .chk.checked { background: var(--good); border-color: var(--good); color: white; }
 </style>
 </head>
 <body>
@@ -247,6 +273,7 @@
   <div class="view-switch">
     <button id="tabList" class="active">📋 Lista</button>
     <button id="tabStats">📊 Estadísticas</button>
+    <button id="tabRandom">🎲 Aleatorio</button>
   </div>
 
   <div id="listView">
@@ -271,6 +298,17 @@
   </div>
 
   <div id="chartsView" style="display:none;"></div>
+
+  <div id="randomView" style="display:none;">
+    <div class="chart-card full">
+      <div class="chart-title">🎲 Recomendación aleatoria</div>
+      <div class="chart-sub">Elige las categorías que te interesan y deja que la suerte decida.</div>
+      <div class="chip-row" id="randomCatChips"></div>
+      <div style="margin-bottom:16px;"><button class="toggle-btn" id="randomPendingOnly">Solo pendientes (no vistos)</button></div>
+      <button class="roll-btn" id="rollBtn">🎲 Dame una recomendación</button>
+      <div id="randomResult"></div>
+    </div>
+  </div>
 
   <footer class="foot">Ultimate Backlog · construido para Juan Felipe</footer>
 </div>
@@ -302,6 +340,9 @@ let state = {
   watchedOnly: false,
   showHidden: false,
   view: 'list',
+  randomCats: new Set(CATS.map(c => c.key)),
+  randomPendingOnly: false,
+  randomPickId: null,
 };
 let isAdmin = false;
 let adminPassword = null;
@@ -525,6 +566,102 @@ function renderAll() {
   if (state.view === 'stats') renderCharts();
 }
 
+// ---------- Recomendación aleatoria ----------
+function renderRandomChips() {
+  const wrap = document.getElementById('randomCatChips');
+  wrap.innerHTML = '';
+
+  const allBtn = document.createElement('button');
+  allBtn.className = 'chip chip-all' + (state.randomCats.size === CATS.length ? ' active' : '');
+  allBtn.textContent = 'Todas';
+  allBtn.addEventListener('click', () => {
+    state.randomCats = new Set(CATS.map(c => c.key));
+    renderRandomChips();
+  });
+  wrap.appendChild(allBtn);
+
+  CATS.forEach(c => {
+    const active = state.randomCats.has(c.key);
+    const btn = document.createElement('button');
+    btn.className = 'chip' + (active ? ' active' : '');
+    btn.style.setProperty('--chip-color', catColor(c.key));
+    btn.textContent = c.icon + ' ' + c.label;
+    btn.addEventListener('click', () => {
+      if (state.randomCats.has(c.key)) {
+        if (state.randomCats.size === 1) { showToast('Selecciona al menos una categoría'); return; }
+        state.randomCats.delete(c.key);
+      } else {
+        state.randomCats.add(c.key);
+      }
+      renderRandomChips();
+    });
+    wrap.appendChild(btn);
+  });
+}
+
+function pickRandom() {
+  const pool = ITEMS.filter(i =>
+    !i.hidden &&
+    state.randomCats.has(i.cat) &&
+    (!state.randomPendingOnly || !i.watched)
+  );
+  if (!pool.length) {
+    state.randomPickId = null;
+    document.getElementById('randomResult').innerHTML =
+      '<div class="no-data">No hay elementos con esos filtros. Prueba con otra combinación de categorías.</div>';
+    return;
+  }
+  const pick = pool[Math.floor(Math.random() * pool.length)];
+  state.randomPickId = pick.id;
+  renderRandomResult();
+}
+
+function renderRandomResult() {
+  const wrap = document.getElementById('randomResult');
+  if (!wrap) return;
+  if (state.randomPickId == null) {
+    wrap.innerHTML = '<div class="no-data">Elige tus categorías y presiona el dado para obtener una recomendación.</div>';
+    return;
+  }
+  const item = ITEMS.find(i => i.id === state.randomPickId);
+  if (!item) {
+    wrap.innerHTML = '<div class="no-data">Ese elemento ya no existe. Intenta de nuevo.</div>';
+    return;
+  }
+  wrap.innerHTML = `
+    <div class="random-card ${item.watched ? 'watched' : ''}">
+      <div class="rr-top">
+        <span class="cat-pill" style="--chip-color:${catColor(item.cat)}">${catIcon(item.cat)} ${catLabel(item.cat)}</span>
+        ${item.watched ? '<span class="watched-pill">✓ Ya lo probaste</span>' : '<span class="pending-pill">Pendiente</span>'}
+      </div>
+      <div class="rr-name">${item.name}</div>
+      <div class="rr-sub">${item.author} &middot; ${item.year}</div>
+      <div class="rr-actions ${isAdmin ? '' : 'readonly'}">
+        <div class="chk ${item.watched ? 'checked' : ''}" data-id="${item.id}">${item.watched ? '✓' : ''}</div>
+        ${starsHtml(item)}
+      </div>
+    </div>
+  `;
+  if (isAdmin) {
+    wrap.querySelector('.chk').addEventListener('click', () => {
+      item.watched = !item.watched;
+      if (!item.watched) item.rating = 0;
+      renderRandomResult();
+      renderAll();
+      syncItem(item);
+    });
+    wrap.querySelectorAll('.star-btn').forEach(el => {
+      el.addEventListener('click', () => {
+        const val = parseInt(el.dataset.val);
+        item.rating = (item.rating === val) ? 0 : val;
+        renderRandomResult();
+        renderAll();
+        syncItem(item);
+      });
+    });
+  }
+}
+
 // ---------- Toast ----------
 let toastTimer = null;
 function showToast(msg) {
@@ -535,21 +672,32 @@ function showToast(msg) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
 }
 
-// ---------- Vista Lista / Estadísticas ----------
+// ---------- Vista Lista / Estadísticas / Aleatorio ----------
 const tabList = document.getElementById('tabList');
 const tabStats = document.getElementById('tabStats');
+const tabRandom = document.getElementById('tabRandom');
 const listView = document.getElementById('listView');
 const chartsView = document.getElementById('chartsView');
-tabList.addEventListener('click', () => {
-  state.view = 'list';
-  tabList.classList.add('active'); tabStats.classList.remove('active');
-  listView.style.display = ''; chartsView.style.display = 'none';
-});
-tabStats.addEventListener('click', () => {
-  state.view = 'stats';
-  tabStats.classList.add('active'); tabList.classList.remove('active');
-  listView.style.display = 'none'; chartsView.style.display = '';
-  renderCharts();
+const randomView = document.getElementById('randomView');
+
+function switchView(view) {
+  state.view = view;
+  tabList.classList.toggle('active', view === 'list');
+  tabStats.classList.toggle('active', view === 'stats');
+  tabRandom.classList.toggle('active', view === 'random');
+  listView.style.display = view === 'list' ? '' : 'none';
+  chartsView.style.display = view === 'stats' ? '' : 'none';
+  randomView.style.display = view === 'random' ? '' : 'none';
+  if (view === 'stats') renderCharts();
+}
+tabList.addEventListener('click', () => switchView('list'));
+tabStats.addEventListener('click', () => switchView('stats'));
+tabRandom.addEventListener('click', () => switchView('random'));
+
+document.getElementById('rollBtn').addEventListener('click', pickRandom);
+document.getElementById('randomPendingOnly').addEventListener('click', function() {
+  state.randomPendingOnly = !state.randomPendingOnly;
+  this.classList.toggle('active', state.randomPendingOnly);
 });
 
 // ---------- Administrador ----------
@@ -602,6 +750,7 @@ function adminLoginSubmitHandler() {
       adminPasswordInput.value = '';
       updateAdminUI();
       renderAll();
+      renderRandomResult();
       showToast('Modo administrador activado');
     } else {
       adminLoginError.style.display = 'block';
@@ -617,6 +766,7 @@ adminLogoutBtn.addEventListener('click', () => {
   localStorage.removeItem(ADMIN_STORAGE_KEY);
   updateAdminUI();
   renderAll();
+  renderRandomResult();
   showToast('Sesión de administrador cerrada');
 });
 
@@ -635,6 +785,7 @@ async function restoreAdminSession() {
     adminPassword = saved;
     updateAdminUI();
     renderAll();
+    renderRandomResult();
   } else {
     localStorage.removeItem(ADMIN_STORAGE_KEY);
   }
@@ -683,6 +834,7 @@ async function loadFromSheet() {
     document.getElementById('totalCount').textContent = ITEMS.filter(i => !i.hidden).length;
     setSyncStatus('ok');
     renderAll();
+    renderRandomResult();
   } catch (err) {
     setSyncStatus('err');
   }
@@ -732,6 +884,8 @@ themeToggle.addEventListener('click', () => {
 
 updateAdminUI();
 renderAll();
+renderRandomChips();
+renderRandomResult();
 loadFromSheet();
 restoreAdminSession();
 </script>
