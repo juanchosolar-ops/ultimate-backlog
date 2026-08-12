@@ -443,18 +443,32 @@
   }
   .roll-btn:active { transform: scale(0.98); }
   .roll-btn:hover { opacity: 0.9; }
-  .random-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 22px 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+  .random-card {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04); overflow: hidden; display: flex; flex-direction: column;
+  }
   .random-card.watched { background: var(--good-bg); }
+  .rr-media {
+    position: relative; aspect-ratio: 16 / 9; background: var(--surface-2);
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+    background: color-mix(in srgb, var(--tile-color) 16%, var(--surface-2));
+  }
+  .rr-media .card-placeholder span { font-size: 46px; opacity: 0.6; }
+  .rr-media .card-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .rr-body { padding: 22px 24px; }
   .rr-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
   .cat-pill { font-size: 12.5px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--chip-color, var(--text-muted)); color: white; }
   .watched-pill { font-size: 12px; color: var(--good); font-weight: 600; }
   .pending-pill { font-size: 12px; color: var(--text-muted); font-weight: 600; }
   .rr-name { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
-  .rr-sub { font-size: 13.5px; color: var(--text-secondary); margin-bottom: 16px; }
-  .rr-reason { font-size: 12px; color: var(--good); font-weight: 500; margin: -10px 0 16px; }
-  .rr-actions { display: flex; align-items: center; gap: 14px; }
-  .rr-actions.readonly .chk { cursor: default; }
-  .random-card:not(.watched) .stars { opacity: 0.55; }
+  .rr-sub { font-size: 13.5px; color: var(--text-secondary); margin-bottom: 4px; }
+  .rr-body .item-notes { font-size: 12.5px; margin-bottom: 4px; }
+  .rr-reason { font-size: 12px; color: var(--good); font-weight: 500; margin-top: 8px; }
+  @media (min-width: 560px) {
+    .random-card { flex-direction: row; }
+    .rr-media { aspect-ratio: auto; width: 220px; flex: none; }
+    .rr-body { flex: 1; }
+  }
   .chk.checked { background: var(--good); border-color: var(--good); color: white; }
 
   /* modal: agregar item */
@@ -514,7 +528,7 @@
     <div class="header-actions">
       <div class="header-btns">
         <button class="theme-toggle" id="themeToggle">🌙 Oscuro</button>
-        <button class="tmdb-toggle-btn" id="tmdbToggleBtn" title="Fuente de carátulas para la vista de tarjetas">🎬 Carátulas</button>
+        <button class="tmdb-toggle-btn" id="tmdbToggleBtn" title="Fuente de carátulas para la vista de tarjetas" style="display:none;">🎬 Carátulas</button>
         <button class="admin-toggle-btn" id="adminToggleBtn">🔒 Admin</button>
         <button class="admin-logout-btn" id="adminLogoutBtn" style="display:none;">Cerrar sesión</button>
       </div>
@@ -1553,64 +1567,52 @@ function renderRandomResult() {
     wrap.innerHTML = '<div class="no-data">Ese elemento ya no existe. Intenta de nuevo.</div>';
     return;
   }
-  const chkPulse = (state.pulse && state.pulse.id === item.id && state.pulse.kind === 'watched') ? 'pulse' : '';
   wrap.innerHTML = `
     <div class="random-card ${item.watched ? 'watched' : ''}">
-      <div class="rr-top">
-        <span class="cat-pill" style="--chip-color:${catColor(item.cat)}">${catIcon(item.cat)} ${catLabel(item.cat)}</span>
-        ${item.watched ? '<span class="watched-pill">✓ Ya lo probaste</span>' : '<span class="pending-pill">Pendiente</span>'}
+      <div class="rr-media" data-cat="${item.cat}" style="--tile-color:${catColor(item.cat)}">
+        ${cardImageInnerHtml(item)}
       </div>
-      <div class="rr-name">${item.name}</div>
-      <div class="rr-sub">${metaLine(item)} &middot; ${item.year}</div>
-      ${state.randomReason ? `<div class="rr-reason">${state.randomReason}</div>` : ''}
-      <div class="rr-actions ${isAdmin ? '' : 'readonly'}">
-        <div class="chk ${item.watched ? 'checked' : ''} ${chkPulse}" data-id="${item.id}">${item.watched ? '✓' : ''}</div>
-        ${starsHtml(item)}
-        ${favBtnHtml(item, !isAdmin)}
+      <div class="rr-body">
+        <div class="rr-top">
+          <span class="cat-pill" style="--chip-color:${catColor(item.cat)}">${catIcon(item.cat)} ${catLabel(item.cat)}</span>
+          ${item.watched ? '<span class="watched-pill">✓ Ya lo probaste</span>' : '<span class="pending-pill">Pendiente</span>'}
+        </div>
+        <div class="rr-name">${item.name}</div>
+        <div class="rr-sub">${metaLine(item)} &middot; ${item.year}</div>
+        ${item.notes ? `<div class="item-notes">📝 ${escapeHtml(item.notes)}</div>` : ''}
+        ${state.randomReason ? `<div class="rr-reason">${state.randomReason}</div>` : ''}
       </div>
     </div>
   `;
-  if (isAdmin) {
-    wrap.querySelector('.chk').addEventListener('click', () => {
-      const prevRating = item.rating;
-      item.watched = !item.watched;
-      if (!item.watched) item.rating = 0;
-      const render = () => { renderRandomResult(); renderAll(); };
-      if (item.watched) {
-        withPulse(item.id, 'watched', null, render);
-      } else {
-        render();
-        if (prevRating > 0) {
-          showToast('Marcado como no visto (se perdió la calificación)', {
-            label: 'Deshacer',
-            onClick: () => {
-              item.watched = true;
-              item.rating = prevRating;
-              withPulse(item.id, 'watched', null, render);
-              syncItem(item);
-            },
-          });
-        }
-      }
-      syncItem(item);
-    });
-    wrap.querySelectorAll('.star-btn').forEach(el => {
-      el.addEventListener('click', () => {
-        const val = parseInt(el.dataset.val);
-        item.rating = (item.rating === val) ? 0 : val;
-        if (item.rating > 0) item.watched = true; // calificar implica marcarlo como visto
-        withPulse(item.id, 'rating', val, () => { renderRandomResult(); renderAll(); });
-        syncItem(item);
-      });
-    });
-    wrap.querySelector('.fav-btn').addEventListener('click', () => {
-      item.favorite = !item.favorite;
-      const render = () => { renderRandomResult(); renderAll(); };
-      if (item.favorite) withPulse(item.id, 'favorite', null, render); else render();
-      syncItem(item);
-      showToast(item.favorite ? 'Guardado en favoritos' : 'Quitado de favoritos');
-    });
+  maybeFetchRandomImage(item, wrap.querySelector('.rr-media'));
+}
+
+// Version de maybeFetchCardImage para la tarjeta unica de Aleatorio (siempre
+// visible, no necesita IntersectionObserver ni pasar por la cola de tarjetas).
+function maybeFetchRandomImage(item, mediaEl) {
+  if (!mediaEl) return;
+  if (item.cat === 'videojuegos' && !RAWG_API_KEY) return; // sin key configurada, no hay fuente
+  if (imgCache[item.id] !== undefined) {
+    return; // ya se intento antes (con o sin exito); cardImageInnerHtml ya pinto el resultado cacheado
   }
+  fetchCardImage(item).then(result => {
+    if (result === undefined) return; // fallo de red: no se cachea, se puede reintentar despues
+    imgCache[item.id] = { url: result || null, ts: Date.now() };
+    saveImgCache();
+    if (result) {
+      const placeholder = mediaEl.querySelector('.card-placeholder');
+      if (placeholder) {
+        const img = document.createElement('img');
+        img.className = 'card-img';
+        img.loading = 'lazy';
+        img.alt = '';
+        img.addEventListener('error', () => { mediaEl.classList.add('img-fallback'); img.remove(); });
+        img.src = result;
+        mediaEl.insertBefore(img, placeholder);
+        placeholder.remove();
+      }
+    }
+  });
 }
 
 // ---------- Toast ----------
@@ -1704,6 +1706,9 @@ function updateAdminUI() {
   adminLoginError.style.display = 'none';
   const addBtn = document.getElementById('addItemBtn');
   if (addBtn) addBtn.style.display = isAdmin ? '' : 'none';
+  // La fuente de carátulas (API key de TMDb) es config técnica: solo el admin la ve/edita.
+  tmdbToggleBtn.style.display = isAdmin ? '' : 'none';
+  if (!isAdmin) tmdbKeyForm.classList.remove('open');
 }
 
 async function attemptLogin(password) {
