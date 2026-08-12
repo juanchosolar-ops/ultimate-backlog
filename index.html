@@ -286,6 +286,7 @@
     <button id="tabList" class="active">📋 Lista</button>
     <button id="tabStats">📊 Estadísticas</button>
     <button id="tabRandom">🎲 Aleatorio</button>
+    <button id="tabFavorites">♥ Favoritos</button>
   </div>
 
   <div id="listView">
@@ -320,6 +321,11 @@
       <button class="roll-btn" id="rollBtn">🎲 Dame una recomendación</button>
       <div id="randomResult"></div>
     </div>
+  </div>
+
+  <div id="favView" style="display:none;">
+    <div class="list" id="favList"></div>
+    <div class="empty" id="favEmptyState" style="display:none;">Todavía no has guardado nada en favoritos. Usa el ♡ en Lista o Aleatorio para agregar.</div>
   </div>
 
   <footer class="foot">Ultimate Backlog · construido para Juan Felipe</footer>
@@ -429,29 +435,15 @@ function favBtnHtml(item, readonly) {
   return `<button class="fav-btn ${item.favorite ? 'is-fav' : ''} ${readonly ? 'readonly' : ''}" data-id="${item.id}" title="${item.favorite ? 'Quitar de favoritos' : 'Guardar en favoritos'}">${item.favorite ? '♥' : '♡'}</button>`;
 }
 
-function renderList() {
-  const listEl = document.getElementById('list');
-  const q = state.search.trim().toLowerCase();
-  let filtered = visibleItems().filter(i => {
-    if (state.cat !== 'all' && i.cat !== state.cat) return false;
-    if (state.pendingOnly && i.watched) return false;
-    if (state.watchedOnly && !i.watched) return false;
-    if (q && !(i.name.toLowerCase().includes(q) || i.author.toLowerCase().includes(q))) return false;
-    return true;
-  });
-
-  listEl.innerHTML = '';
-  document.getElementById('emptyState').style.display = filtered.length ? 'none' : 'block';
-
-  filtered.forEach(item => {
-    const row = document.createElement('div');
-    let cls = 'item';
-    if (item.watched) cls += ' watched';
-    if (!isAdmin) cls += ' readonly';
-    if (isAdmin) cls += ' admin';
-    if (item.hidden) cls += ' is-hidden';
-    row.className = cls;
-    row.innerHTML = `
+// Construye el row de un item (usado tanto en Lista como en Favoritos).
+function itemRowHtml(item) {
+  let cls = 'item';
+  if (item.watched) cls += ' watched';
+  if (!isAdmin) cls += ' readonly';
+  if (isAdmin) cls += ' admin';
+  if (item.hidden) cls += ' is-hidden';
+  return `
+    <div class="${cls}">
       <div class="chk" data-id="${item.id}">${item.watched ? '✓' : ''}</div>
       <div class="info">
         <div class="name"><span class="cat-dot" style="background:${catColor(item.cat)}"></span>${item.name}</div>
@@ -461,12 +453,16 @@ function renderList() {
       ${starsHtml(item)}
       ${favBtnHtml(item, !isAdmin)}
       ${isAdmin ? `<button class="hide-btn" data-id="${item.id}" title="${item.hidden ? 'Mostrar de nuevo' : 'Ocultar de recomendaciones'}">${item.hidden ? '↺' : '✕'}</button>` : ''}
-    `;
-    listEl.appendChild(row);
-  });
+    </div>
+  `;
+}
 
-  // bind events
-  listEl.querySelectorAll('.chk').forEach(el => {
+// Pinta una lista de items dentro de containerEl y ata los eventos (chk,
+// estrellas, favoritos, ocultar). Se usa tanto para Lista como Favoritos.
+function renderItemRows(containerEl, items) {
+  containerEl.innerHTML = items.map(itemRowHtml).join('');
+
+  containerEl.querySelectorAll('.chk').forEach(el => {
     el.addEventListener('click', () => {
       if (!isAdmin) { showToast('Inicia sesión como administrador para editar'); return; }
       const id = parseInt(el.dataset.id);
@@ -477,7 +473,7 @@ function renderList() {
       syncItem(item);
     });
   });
-  listEl.querySelectorAll('.star-btn').forEach(el => {
+  containerEl.querySelectorAll('.star-btn').forEach(el => {
     el.addEventListener('click', () => {
       if (!isAdmin) { showToast('Inicia sesión como administrador para editar'); return; }
       const id = parseInt(el.dataset.id);
@@ -489,7 +485,7 @@ function renderList() {
       syncItem(item);
     });
   });
-  listEl.querySelectorAll('.fav-btn').forEach(el => {
+  containerEl.querySelectorAll('.fav-btn').forEach(el => {
     el.addEventListener('click', (ev) => {
       ev.stopPropagation();
       if (!isAdmin) { showToast('Inicia sesión como administrador para editar'); return; }
@@ -501,7 +497,7 @@ function renderList() {
       showToast(item.favorite ? 'Guardado en favoritos' : 'Quitado de favoritos');
     });
   });
-  listEl.querySelectorAll('.hide-btn').forEach(el => {
+  containerEl.querySelectorAll('.hide-btn').forEach(el => {
     el.addEventListener('click', (ev) => {
       ev.stopPropagation();
       if (!isAdmin) return;
@@ -513,6 +509,30 @@ function renderList() {
       showToast(item.hidden ? 'Ocultado de las recomendaciones' : 'Vuelto a mostrar');
     });
   });
+}
+
+function renderList() {
+  const listEl = document.getElementById('list');
+  const q = state.search.trim().toLowerCase();
+  let filtered = visibleItems().filter(i => {
+    if (state.cat !== 'all' && i.cat !== state.cat) return false;
+    if (state.pendingOnly && i.watched) return false;
+    if (state.watchedOnly && !i.watched) return false;
+    if (q && !(i.name.toLowerCase().includes(q) || i.author.toLowerCase().includes(q))) return false;
+    return true;
+  });
+
+  document.getElementById('emptyState').style.display = filtered.length ? 'none' : 'block';
+  renderItemRows(listEl, filtered);
+}
+
+// ---------- Favoritos ----------
+function renderFavorites() {
+  const favListEl = document.getElementById('favList');
+  if (!favListEl) return;
+  const favs = ITEMS.filter(i => i.favorite && !i.hidden);
+  document.getElementById('favEmptyState').style.display = favs.length ? 'none' : 'block';
+  renderItemRows(favListEl, favs);
 }
 
 // ---------- Estadísticas ----------
@@ -605,6 +625,7 @@ function renderCharts() {
 function renderAll() {
   renderStats();
   renderList();
+  renderFavorites();
   if (state.view === 'stats') renderCharts();
 }
 
@@ -803,23 +824,29 @@ function showToast(msg) {
 const tabList = document.getElementById('tabList');
 const tabStats = document.getElementById('tabStats');
 const tabRandom = document.getElementById('tabRandom');
+const tabFavorites = document.getElementById('tabFavorites');
 const listView = document.getElementById('listView');
 const chartsView = document.getElementById('chartsView');
 const randomView = document.getElementById('randomView');
+const favView = document.getElementById('favView');
 
 function switchView(view) {
   state.view = view;
   tabList.classList.toggle('active', view === 'list');
   tabStats.classList.toggle('active', view === 'stats');
   tabRandom.classList.toggle('active', view === 'random');
+  tabFavorites.classList.toggle('active', view === 'favorites');
   listView.style.display = view === 'list' ? '' : 'none';
   chartsView.style.display = view === 'stats' ? '' : 'none';
   randomView.style.display = view === 'random' ? '' : 'none';
+  favView.style.display = view === 'favorites' ? '' : 'none';
   if (view === 'stats') renderCharts();
+  if (view === 'favorites') renderFavorites();
 }
 tabList.addEventListener('click', () => switchView('list'));
 tabStats.addEventListener('click', () => switchView('stats'));
 tabRandom.addEventListener('click', () => switchView('random'));
+tabFavorites.addEventListener('click', () => switchView('favorites'));
 
 document.getElementById('rollBtn').addEventListener('click', pickRandom);
 document.getElementById('randomPendingOnly').addEventListener('click', function() {
