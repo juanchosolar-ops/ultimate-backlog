@@ -293,6 +293,11 @@
     transition: border-color .15s ease, transform .1s ease;
   }
   .chip.active { background: var(--chip-color, var(--text-primary)); color: white; border-color: var(--chip-color, var(--text-primary)); }
+  /* los chips sin --chip-color propio (modo aleatorio/gustos, "Todas") usan
+     --text-primary como fondo, que se invierte en modo oscuro -- su texto
+     debe invertirse con el fondo en vez de quedar blanco fijo, o se vuelve
+     ilegible (blanco sobre blanco). */
+  .chip-all.active, #modeRandomBtn.active, #modeTasteBtn.active { color: var(--page); }
   .chip.chip-all { font-weight: 600; }
   .chip:active { transform: scale(0.95); }
   .roll-btn {
