@@ -114,6 +114,7 @@
     transition: border-color .15s ease, transform .12s ease, box-shadow .12s ease;
   }
   .tile:hover { border-color: var(--text-muted); transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,0.06); }
+  .tile:active { transform: translateY(0) scale(0.98); }
   .tile.active { border-color: var(--tile-color); box-shadow: 0 0 0 1px var(--tile-color) inset; }
   .tile .tile-head { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
   .tile .tile-icon { font-size: 15px; }
@@ -131,6 +132,7 @@
   }
   .view-switch button:hover { border-color: var(--text-muted); color: var(--text-primary); }
   .view-switch button.active { background: var(--text-primary); color: var(--page); border-color: var(--text-primary); }
+  .view-switch button:active { transform: scale(0.96); }
 
   .controls {
     display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
@@ -145,7 +147,9 @@
   select.filter, .toggle-btn {
     background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
     padding: 9px 12px; color: var(--text-primary); font-size: 13px; cursor: pointer;
+    transition: border-color .15s ease, transform .1s ease;
   }
+  .toggle-btn:active { transform: scale(0.96); }
   .toggle-btn.active { border-color: var(--good); color: var(--good); background: var(--good-bg); }
 
   .note {
@@ -175,17 +179,23 @@
     width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--text-muted);
     display: flex; align-items: center; justify-content: center; cursor: pointer;
     background: var(--surface-2); font-size: 13px; user-select: none;
+    transition: background .15s ease, border-color .15s ease, transform .1s ease;
   }
   .item.watched .chk { background: var(--good); border-color: var(--good); color: white; }
+  .item:not(.readonly) .chk:active { transform: scale(0.88); }
 
   .info .name { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
   .info .sub { font-size: 12.5px; color: var(--text-muted); margin-top: 3px; }
   .cat-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; }
 
   .stars { display: flex; gap: 2px; }
-  .star-btn { font-size: 16px; cursor: pointer; color: var(--gridline); background: none; border: none; padding: 2px; line-height: 1; }
+  .star-btn {
+    font-size: 16px; cursor: pointer; color: var(--gridline); background: none; border: none;
+    padding: 2px; line-height: 1; transition: color .12s ease, transform .1s ease;
+  }
   .star-btn.filled { color: var(--star); }
   .item:not(.watched) .stars { opacity: 0.55; }
+  .star-btn:active { transform: scale(0.8); }
 
   .year-badge {
     font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums;
@@ -195,8 +205,10 @@
   .hide-btn {
     border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted);
     border-radius: 6px; width: 26px; height: 26px; font-size: 13px; cursor: pointer;
+    transition: border-color .15s ease, color .15s ease, transform .1s ease;
   }
   .hide-btn:hover { border-color: var(--critical); color: var(--critical); }
+  .hide-btn:active { transform: scale(0.88); }
   .item.is-hidden { opacity: 0.55; }
   .item.is-hidden .hide-btn { border-color: var(--critical); color: var(--critical); }
 
@@ -206,6 +218,22 @@
     transition: color .15s ease, transform .12s ease;
   }
   .fav-btn.readonly { cursor: default; }
+  .fav-btn:not(.readonly):active { transform: scale(0.85); }
+
+  /* micro-animacion al marcar visto / calificar / favoritear */
+  @keyframes popScale {
+    0% { transform: scale(1); }
+    45% { transform: scale(1.35); }
+    100% { transform: scale(1); }
+  }
+  .chk.pulse, .fav-btn.pulse, .star-btn.pulse { animation: popScale .38s ease; }
+  @media (prefers-reduced-motion: reduce) {
+    .chk.pulse, .fav-btn.pulse, .star-btn.pulse,
+    .tile, .item, .view-switch button, .theme-toggle, .admin-toggle-btn, .admin-logout-btn {
+      animation: none !important; transition: none !important;
+    }
+    .load-bar { transition: none !important; }
+  }
   .fav-btn.is-fav { color: var(--fav); }
   .fav-btn:hover:not(.readonly) { color: var(--fav); transform: scale(1.15); }
   .fav-btn.is-fav:hover:not(.readonly) { transform: scale(1); }
@@ -214,6 +242,16 @@
   .empty { text-align: center; color: var(--text-muted); padding: 40px 0; font-size: 14px; }
 
   footer.foot { margin-top: 32px; font-size: 12px; color: var(--text-muted); text-align: center; }
+
+  /* barra de carga superior mientras se conecta a Google Sheets */
+  .load-bar {
+    position: fixed; top: 0; left: 0; height: 3px; width: 100%; z-index: 60;
+    background: linear-gradient(90deg, var(--s1), var(--s4));
+    transform-origin: left; transform: scaleX(0); opacity: 0;
+    transition: transform 5s cubic-bezier(0.1, 0.6, 0.2, 1), opacity .25s ease;
+  }
+  .load-bar.active { transform: scaleX(0.85); opacity: 1; }
+  .load-bar.done { transform: scaleX(1); opacity: 0; transition: transform .3s ease, opacity .4s ease .1s; }
 
   /* toast */
   .toast {
@@ -252,13 +290,17 @@
   .chip {
     border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
     border-radius: 999px; padding: 7px 14px; font-size: 13px; cursor: pointer; font-weight: 500;
+    transition: border-color .15s ease, transform .1s ease;
   }
   .chip.active { background: var(--chip-color, var(--text-primary)); color: white; border-color: var(--chip-color, var(--text-primary)); }
   .chip.chip-all { font-weight: 600; }
+  .chip:active { transform: scale(0.95); }
   .roll-btn {
     background: var(--text-primary); color: var(--page); border: none; border-radius: 10px;
     padding: 14px 22px; font-size: 15px; font-weight: 600; cursor: pointer; width: 100%; margin-bottom: 20px;
+    transition: opacity .15s ease, transform .1s ease;
   }
+  .roll-btn:active { transform: scale(0.98); }
   .roll-btn:hover { opacity: 0.9; }
   .random-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 22px 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
   .random-card.watched { background: var(--good-bg); }
@@ -276,6 +318,7 @@
 </style>
 </head>
 <body>
+<div class="load-bar" id="loadBar"></div>
 <div class="wrap">
   <header class="top">
     <div>
@@ -380,6 +423,7 @@ let state = {
   randomPickId: null,
   randomMode: 'random', // 'random' | 'taste'
   randomReason: '',
+  pulse: null, // { id, kind: 'watched'|'rating'|'favorite', val } — controla la animacion del proximo render
 };
 let isAdmin = false;
 let adminPassword = null;
@@ -431,11 +475,23 @@ function renderStats() {
 }
 
 function starsHtml(item) {
+  const pulseVal = (state.pulse && state.pulse.id === item.id && state.pulse.kind === 'rating') ? state.pulse.val : null;
   let s = '';
   for (let i = 1; i <= 5; i++) {
-    s += `<button class="star-btn ${item.rating >= i ? 'filled' : ''}" data-id="${item.id}" data-val="${i}">★</button>`;
+    const cls = ['star-btn', item.rating >= i ? 'filled' : '', i === pulseVal ? 'pulse' : ''].filter(Boolean).join(' ');
+    s += `<button class="${cls}" data-id="${item.id}" data-val="${i}">★</button>`;
   }
   return `<div class="stars">${s}</div>`;
+}
+
+// Marca en 'state.pulse' cual item/control acaba de cambiar (visto, calificado
+// o favorito) para que el siguiente render le agregue una animacion breve.
+// Se limpia enseguida despues de renderizar para que no se repita en el
+// proximo render de un cambio no relacionado (p.ej. escribir en el buscador).
+function withPulse(id, kind, val, renderFn) {
+  state.pulse = { id, kind, val };
+  renderFn();
+  state.pulse = null;
 }
 
 // Linea de detalle bajo el nombre: categoria, autor, y opcionalmente genero
@@ -449,7 +505,8 @@ function metaLine(item) {
 }
 
 function favBtnHtml(item, readonly) {
-  return `<button class="fav-btn ${item.favorite ? 'is-fav' : ''} ${readonly ? 'readonly' : ''}" data-id="${item.id}" title="${item.favorite ? 'Quitar de favoritos' : 'Guardar en favoritos'}">${item.favorite ? '♥' : '♡'}</button>`;
+  const pulse = (state.pulse && state.pulse.id === item.id && state.pulse.kind === 'favorite') ? 'pulse' : '';
+  return `<button class="fav-btn ${item.favorite ? 'is-fav' : ''} ${readonly ? 'readonly' : ''} ${pulse}" data-id="${item.id}" title="${item.favorite ? 'Quitar de favoritos' : 'Guardar en favoritos'}">${item.favorite ? '♥' : '♡'}</button>`;
 }
 
 // Construye el row de un item (usado tanto en Lista como en Favoritos).
@@ -459,9 +516,10 @@ function itemRowHtml(item) {
   if (!isAdmin) cls += ' readonly';
   if (isAdmin) cls += ' admin';
   if (item.hidden) cls += ' is-hidden';
+  const chkPulse = (state.pulse && state.pulse.id === item.id && state.pulse.kind === 'watched') ? 'pulse' : '';
   return `
     <div class="${cls}">
-      <div class="chk" data-id="${item.id}">${item.watched ? '✓' : ''}</div>
+      <div class="chk ${chkPulse}" data-id="${item.id}">${item.watched ? '✓' : ''}</div>
       <div class="info">
         <div class="name"><span class="cat-dot" style="background:${catColor(item.cat)}"></span>${item.name}</div>
         <div class="sub">${metaLine(item)}</div>
@@ -486,7 +544,7 @@ function renderItemRows(containerEl, items) {
       const item = ITEMS.find(i => i.id === id);
       item.watched = !item.watched;
       if (!item.watched) item.rating = 0;
-      renderAll();
+      if (item.watched) withPulse(id, 'watched', null, renderAll); else renderAll();
       syncItem(item);
     });
   });
@@ -498,7 +556,7 @@ function renderItemRows(containerEl, items) {
       const item = ITEMS.find(i => i.id === id);
       item.rating = (item.rating === val) ? 0 : val;
       if (item.rating > 0) item.watched = true; // calificar implica marcarlo como visto
-      renderAll();
+      withPulse(id, 'rating', val, renderAll);
       syncItem(item);
     });
   });
@@ -509,7 +567,7 @@ function renderItemRows(containerEl, items) {
       const id = parseInt(el.dataset.id);
       const item = ITEMS.find(i => i.id === id);
       item.favorite = !item.favorite;
-      renderAll();
+      if (item.favorite) withPulse(id, 'favorite', null, renderAll); else renderAll();
       syncItem(item);
       showToast(item.favorite ? 'Guardado en favoritos' : 'Quitado de favoritos');
     });
@@ -783,6 +841,7 @@ function renderRandomResult() {
     wrap.innerHTML = '<div class="no-data">Ese elemento ya no existe. Intenta de nuevo.</div>';
     return;
   }
+  const chkPulse = (state.pulse && state.pulse.id === item.id && state.pulse.kind === 'watched') ? 'pulse' : '';
   wrap.innerHTML = `
     <div class="random-card ${item.watched ? 'watched' : ''}">
       <div class="rr-top">
@@ -793,7 +852,7 @@ function renderRandomResult() {
       <div class="rr-sub">${metaLine(item)} &middot; ${item.year}</div>
       ${state.randomReason ? `<div class="rr-reason">${state.randomReason}</div>` : ''}
       <div class="rr-actions ${isAdmin ? '' : 'readonly'}">
-        <div class="chk ${item.watched ? 'checked' : ''}" data-id="${item.id}">${item.watched ? '✓' : ''}</div>
+        <div class="chk ${item.watched ? 'checked' : ''} ${chkPulse}" data-id="${item.id}">${item.watched ? '✓' : ''}</div>
         ${starsHtml(item)}
         ${favBtnHtml(item, !isAdmin)}
       </div>
@@ -803,8 +862,8 @@ function renderRandomResult() {
     wrap.querySelector('.chk').addEventListener('click', () => {
       item.watched = !item.watched;
       if (!item.watched) item.rating = 0;
-      renderRandomResult();
-      renderAll();
+      const render = () => { renderRandomResult(); renderAll(); };
+      if (item.watched) withPulse(item.id, 'watched', null, render); else render();
       syncItem(item);
     });
     wrap.querySelectorAll('.star-btn').forEach(el => {
@@ -812,15 +871,14 @@ function renderRandomResult() {
         const val = parseInt(el.dataset.val);
         item.rating = (item.rating === val) ? 0 : val;
         if (item.rating > 0) item.watched = true; // calificar implica marcarlo como visto
-        renderRandomResult();
-        renderAll();
+        withPulse(item.id, 'rating', val, () => { renderRandomResult(); renderAll(); });
         syncItem(item);
       });
     });
     wrap.querySelector('.fav-btn').addEventListener('click', () => {
       item.favorite = !item.favorite;
-      renderRandomResult();
-      renderAll();
+      const render = () => { renderRandomResult(); renderAll(); };
+      if (item.favorite) withPulse(item.id, 'favorite', null, render); else render();
       syncItem(item);
       showToast(item.favorite ? 'Guardado en favoritos' : 'Quitado de favoritos');
     });
@@ -1007,8 +1065,16 @@ function normalizeRow(r) {
 // Modo autoservicio: el catalogo completo (nombre/anio/autor/categoria) se lee
 // de la Sheet, no solo el estado de visto/calificacion. Agregar una fila nueva
 // ahi (con id/watched/rating vacios) la hace aparecer sola en el panel.
+function setLoadBar(mode) {
+  const bar = document.getElementById('loadBar');
+  if (!bar) return;
+  if (mode === 'start') { bar.classList.remove('done'); void bar.offsetWidth; bar.classList.add('active'); }
+  else { bar.classList.remove('active'); bar.classList.add('done'); }
+}
+
 async function loadFromSheet() {
   if (!WEBAPP_URL) { setSyncStatus('err'); return; }
+  setLoadBar('start');
   try {
     const res = await fetch(WEBAPP_URL, { method: 'GET' });
     if (!res.ok) throw new Error('bad response');
@@ -1024,6 +1090,7 @@ async function loadFromSheet() {
         ITEMS.push(...fresh);
       } else {
         setSyncStatus('err');
+        setLoadBar('done');
         showToast('La hoja respondió pero no se pudo leer ningún elemento (revisa los encabezados de columnas)');
         renderAll();
         renderRandomResult();
@@ -1032,10 +1099,12 @@ async function loadFromSheet() {
     }
     document.getElementById('totalCount').textContent = ITEMS.filter(i => !i.hidden).length;
     setSyncStatus('ok');
+    setLoadBar('done');
     renderAll();
     renderRandomResult();
   } catch (err) {
     setSyncStatus('err');
+    setLoadBar('done');
   }
 }
 
