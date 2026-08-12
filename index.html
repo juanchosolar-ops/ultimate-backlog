@@ -677,6 +677,9 @@
 // Se deja vacío hasta que el deployment esté listo; si está vacío, la app
 // funciona solo como vista local (sin persistencia).
 const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbw8RcQORRD3YBgM5zHqjDt7bxtzrH87r-mCLUYnjcLv7e4Wqw3vblx1nwu92QwQvnY/exec";
+// API key de RAWG (rawg.io) para caratulas de videojuegos en la vista de
+// tarjetas -- a diferencia de la de TMDb, esta viene fija en el build.
+const RAWG_API_KEY = "ijqsa9poarcsazoks4sep9gthe0vwc";
 const ADMIN_STORAGE_KEY = "ub_admin_pw";
 const FILTERS_STORAGE_KEY = "ub_filters";
 
@@ -974,7 +977,7 @@ function queueCardImages(containerEl, items) {
 }
 
 function maybeFetchCardImage(item, cardEl) {
-  if (item.cat === 'videojuegos') return; // sin fuente confiable sin API key
+  if (item.cat === 'videojuegos' && !RAWG_API_KEY) return; // sin key configurada, no hay fuente
   if (imgCache[item.id] !== undefined) return; // ya se intento antes (con o sin exito)
   cardImgQueue.push(() => fetchCardImage(item).then(result => {
     if (result === undefined) return; // fallo de red: no se cachea, se puede reintentar despues
@@ -1007,7 +1010,8 @@ async function fetchCardImage(item) {
     if (item.cat === 'cine') return await fetchPosterImage(item.name, 'movie', controller.signal);
     if (item.cat === 'series') return await fetchPosterImage(item.name, 'tv', controller.signal);
     if (item.cat === 'musica') return await fetchItunesImage(`${item.author} ${item.name}`, 'music', 'album', controller.signal);
-    if (item.cat === 'anime') return await fetchJikanImage(item.name, controller.signal);
+    if (item.cat === 'anime') return await fetchAnimeImage(item.name, controller.signal);
+    if (item.cat === 'videojuegos') return await fetchRawgImage(item.name, controller.signal);
     return null;
   } catch (err) {
     return undefined; // abort/timeout/error de red
@@ -1085,18 +1089,66 @@ async function fetchItunesImage(term, media, entity, signal) {
   return hit.artworkUrl100.replace('100x100bb', '600x600bb');
 }
 
+// Busca poster de anime. Jikan (MyAnimeList) primero -- es la fuente mas
+// especializada -- y si no encuentra nada (o la key de TMDb esta configurada
+// y Jikan fallo por red) prueba TMDb como TV show, ya que muchos animes
+// populares tambien estan catalogados ahi.
+async function fetchAnimeImage(name, signal) {
+  let anyNetworkFailure = false;
+  const jikan = await fetchJikanImage(name, signal);
+  if (typeof jikan === 'string') return jikan;
+  if (jikan === undefined) anyNetworkFailure = true;
+  if (tmdbKey) {
+    const tmdb = await fetchTmdbImage(name, 'tv', signal);
+    if (typeof tmdb === 'string') return tmdb;
+    if (tmdb === undefined) anyNetworkFailure = true;
+  }
+  return anyNetworkFailure ? undefined : null;
+}
+
+// Jikan es la API publica no oficial de MyAnimeList: no pide key, pero tiene
+// un limite estricto (3 pedidos/segundo, 60/minuto). Si varias tarjetas de
+// anime entran en pantalla a la vez, mandar todos los pedidos juntos hace que
+// la API responda 429 (que este codigo trata como "reintentar despues", asi
+// que las caratulas nunca terminaban de aparecer). Esta cola los encadena de
+// a uno con una pausa entre cada uno para respetar el limite.
+let jikanGate = Promise.resolve();
+function scheduleJikan(taskFn) {
+  const result = jikanGate.then(taskFn);
+  jikanGate = result.catch(() => {}).then(() => new Promise(r => setTimeout(r, 400)));
+  return result;
+}
+
 async function fetchJikanImage(name, signal) {
-  const url = `https://api.jikan.moe/v4/anime?q=${encodeURIComponent(name)}&limit=1`;
+  return scheduleJikan(async () => {
+    const url = `https://api.jikan.moe/v4/anime?q=${encodeURIComponent(name)}&limit=1`;
+    let res;
+    try {
+      res = await fetch(url, { signal });
+    } catch (err) { return undefined; }
+    if (!res.ok) return undefined; // incluye 429 (limite excedido): se puede reintentar despues
+    const data = await res.json();
+    const hit = data && Array.isArray(data.data) ? data.data[0] : null;
+    if (!hit) return null;
+    const img = hit.images && hit.images.jpg ? (hit.images.jpg.large_image_url || hit.images.jpg.image_url) : null;
+    return img || null;
+  });
+}
+
+// RAWG (rawg.io) para caratulas de videojuegos. A diferencia de TMDb, esta
+// key viene fija en el build (RAWG_API_KEY), no la configura el usuario.
+async function fetchRawgImage(name, signal) {
+  if (!RAWG_API_KEY) return null;
+  const url = `https://api.rawg.io/api/games?key=${encodeURIComponent(RAWG_API_KEY)}&search=${encodeURIComponent(name)}&page_size=1`;
   let res;
   try {
     res = await fetch(url, { signal });
   } catch (err) { return undefined; }
   if (!res.ok) return undefined;
   const data = await res.json();
-  const hit = data && Array.isArray(data.data) ? data.data[0] : null;
+  const hit = data && Array.isArray(data.results) ? data.results[0] : null;
   if (!hit) return null;
-  const img = hit.images && hit.images.jpg ? (hit.images.jpg.large_image_url || hit.images.jpg.image_url) : null;
-  return img || null;
+  return hit.background_image || null;
 }
 
 // Construye la tarjeta de un item (usada en la vista de tarjetas). Misma
