@@ -111,6 +111,25 @@
   }
   .admin-login-error { color: var(--critical); font-size: 11.5px; margin-top: 2px; text-align: right; }
 
+  .tmdb-toggle-btn.is-active { border-color: var(--good); color: var(--good); background: var(--good-bg); }
+  .tmdb-key-form {
+    display: none; flex-direction: column; gap: 8px; background: var(--surface-1);
+    border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-top: 8px;
+    max-width: 340px; margin-left: auto;
+  }
+  .tmdb-key-form.open { display: flex; }
+  .tmdb-key-hint { margin: 0; font-size: 11.5px; color: var(--text-secondary); line-height: 1.5; }
+  .tmdb-key-hint a { color: var(--s1); }
+  .tmdb-key-row { display: flex; gap: 6px; }
+  .tmdb-key-row input {
+    flex: 1; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px;
+    font-size: 13px; background: var(--surface-2); color: var(--text-primary);
+  }
+  .tmdb-key-row button {
+    border: none; background: var(--good); color: white; border-radius: 6px;
+    padding: 6px 12px; font-size: 13px; cursor: pointer; white-space: nowrap;
+  }
+
   /* stat tiles */
   .stats {
     display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
@@ -495,6 +514,7 @@
     <div class="header-actions">
       <div class="header-btns">
         <button class="theme-toggle" id="themeToggle">🌙 Oscuro</button>
+        <button class="tmdb-toggle-btn" id="tmdbToggleBtn" title="Fuente de carátulas para la vista de tarjetas">🎬 Carátulas</button>
         <button class="admin-toggle-btn" id="adminToggleBtn">🔒 Admin</button>
         <button class="admin-logout-btn" id="adminLogoutBtn" style="display:none;">Cerrar sesión</button>
       </div>
@@ -504,6 +524,20 @@
           <button id="adminLoginSubmit">Entrar</button>
         </div>
         <div class="admin-login-error" id="adminLoginError" style="display:none;">Contraseña incorrecta</div>
+      </div>
+      <div>
+        <div class="tmdb-key-form" id="tmdbKeyForm">
+          <p class="tmdb-key-hint">
+            Pega tu <strong>API Key (v3 auth)</strong> gratis de
+            <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">themoviedb.org/settings/api</a>
+            para que la vista de tarjetas encuentre carátulas de cine/series en español. Sin esto, se usa iTunes,
+            que encuentra bastante menos.
+          </p>
+          <div class="tmdb-key-row">
+            <input type="text" id="tmdbKeyInput" placeholder="API key de TMDb (opcional)">
+            <button id="tmdbKeySave">Guardar</button>
+          </div>
+        </div>
       </div>
     </div>
   </header>
@@ -894,6 +928,15 @@ function saveImgCache() {
   try { localStorage.setItem(IMG_CACHE_KEY, JSON.stringify(imgCache)); } catch (err) { /* no disponible */ }
 }
 
+// API key de TMDb (opcional, gratis, la pega el usuario desde el boton "🎬
+// Carátulas" del encabezado). Con ella, cine y series buscan carátula primero
+// en TMDb -- que si tiene titulos traducidos al español -- y solo si no
+// encuentra nada cae a iTunes. Sin key configurada, se usa iTunes directo
+// (funciona, pero encuentra bastante menos para titulos en español).
+const TMDB_KEY_STORAGE = 'ub_tmdb_key';
+let tmdbKey = null;
+try { tmdbKey = localStorage.getItem(TMDB_KEY_STORAGE) || null; } catch (err) { tmdbKey = null; }
+
 function cardImageInnerHtml(item) {
   const cached = imgCache[item.id];
   if (cached && cached.url) {
@@ -961,12 +1004,8 @@ async function fetchCardImage(item) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 6000);
   try {
-    if (item.cat === 'cine') return await fetchItunesImage(item.name, 'movie', 'movie', controller.signal);
-    if (item.cat === 'series') {
-      const bySeason = await fetchItunesImage(item.name, 'tvShow', 'tvSeason', controller.signal);
-      if (bySeason !== undefined && bySeason !== null) return bySeason;
-      return await fetchItunesImage(item.name, 'tvShow', 'tvShow', controller.signal);
-    }
+    if (item.cat === 'cine') return await fetchPosterImage(item.name, 'movie', controller.signal);
+    if (item.cat === 'series') return await fetchPosterImage(item.name, 'tv', controller.signal);
     if (item.cat === 'musica') return await fetchItunesImage(`${item.author} ${item.name}`, 'music', 'album', controller.signal);
     if (item.cat === 'anime') return await fetchJikanImage(item.name, controller.signal);
     return null;
@@ -975,6 +1014,61 @@ async function fetchCardImage(item) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+// Busca poster de cine/series. Si hay una API key de TMDb configurada, la
+// prueba primero (mejor cobertura, incluye titulos en español); si no
+// encuentra nada ahi (o no hay key), cae a iTunes como respaldo. Solo se
+// devuelve undefined (reintentar despues) si TODOS los intentos fallaron por
+// red -- si cualquiera respondio "no hay resultados", eso ya cuenta como
+// intento hecho.
+async function fetchPosterImage(name, kind, signal) {
+  let anyNetworkFailure = false;
+  if (tmdbKey) {
+    const tmdb = await fetchTmdbImage(name, kind, signal);
+    if (typeof tmdb === 'string') return tmdb;
+    if (tmdb === undefined) anyNetworkFailure = true;
+  }
+  if (kind === 'movie') {
+    const it = await fetchItunesImage(name, 'movie', 'movie', signal);
+    if (typeof it === 'string') return it;
+    if (it === undefined) anyNetworkFailure = true;
+  } else {
+    const bySeason = await fetchItunesImage(name, 'tvShow', 'tvSeason', signal);
+    if (typeof bySeason === 'string') return bySeason;
+    if (bySeason === undefined) anyNetworkFailure = true;
+    else {
+      const byShow = await fetchItunesImage(name, 'tvShow', 'tvShow', signal);
+      if (typeof byShow === 'string') return byShow;
+      if (byShow === undefined) anyNetworkFailure = true;
+    }
+  }
+  return anyNetworkFailure ? undefined : null;
+}
+
+// Busca en TMDb (search/movie o search/tv). Primero en español (asi
+// encuentra directamente titulos como "Sin Novedad en el Frente"); si no hay
+// resultados, reintenta sin idioma especifico (catalogo por defecto).
+async function fetchTmdbImage(name, kind, signal) {
+  const tryLang = async (lang) => {
+    const params = new URLSearchParams({ api_key: tmdbKey, query: name });
+    if (lang) params.set('language', lang);
+    const url = `https://api.themoviedb.org/3/search/${kind}?${params.toString()}`;
+    let res;
+    try {
+      res = await fetch(url, { signal });
+    } catch (err) { return undefined; }
+    if (!res.ok) return undefined; // incluye key invalida (401/403): no cachear como "no encontrado"
+    const data = await res.json();
+    const hit = data && Array.isArray(data.results) ? data.results[0] : null;
+    if (!hit) return null;
+    if (!hit.poster_path) return null;
+    return `https://image.tmdb.org/t/p/w500${hit.poster_path}`;
+  };
+  const esResult = await tryLang('es-ES');
+  if (esResult === undefined) return undefined;
+  if (esResult !== null) return esResult;
+  return await tryLang(); // sin resultados en español: probar catalogo por defecto
 }
 
 async function fetchItunesImage(term, media, entity, signal) {
@@ -1834,6 +1928,39 @@ themeToggle.addEventListener('click', () => {
   const isDark = root.getAttribute('data-theme') === 'dark';
   root.setAttribute('data-theme', isDark ? 'light' : 'dark');
   themeToggle.textContent = isDark ? '🌙 Oscuro' : '☀️ Claro';
+});
+
+// ---------- Fuente de carátulas (TMDb, opcional) ----------
+const tmdbToggleBtn = document.getElementById('tmdbToggleBtn');
+const tmdbKeyForm = document.getElementById('tmdbKeyForm');
+const tmdbKeyInput = document.getElementById('tmdbKeyInput');
+
+function updateTmdbButtonUI() {
+  tmdbToggleBtn.textContent = tmdbKey ? '🎬 Carátulas ✓' : '🎬 Carátulas';
+  tmdbToggleBtn.classList.toggle('is-active', !!tmdbKey);
+}
+tmdbKeyInput.value = tmdbKey || '';
+updateTmdbButtonUI();
+
+tmdbToggleBtn.addEventListener('click', () => { tmdbKeyForm.classList.toggle('open'); });
+document.getElementById('tmdbKeySave').addEventListener('click', () => {
+  const val = tmdbKeyInput.value.trim();
+  const changed = val !== (tmdbKey || '');
+  tmdbKey = val || null;
+  try {
+    if (tmdbKey) localStorage.setItem(TMDB_KEY_STORAGE, tmdbKey);
+    else localStorage.removeItem(TMDB_KEY_STORAGE);
+  } catch (err) { /* no disponible */ }
+  updateTmdbButtonUI();
+  tmdbKeyForm.classList.remove('open');
+  if (changed) {
+    // con una fuente nueva (o quitada) vale la pena reintentar las caratulas
+    // que antes no se habian encontrado, asi que se limpia la cache.
+    imgCache = {};
+    saveImgCache();
+    showToast(tmdbKey ? 'Key de TMDb guardada. Las carátulas se van a volver a buscar.' : 'Key de TMDb quitada. Se vuelve a usar iTunes.');
+    if (state.layout === 'cards') renderList();
+  }
 });
 
 // ---------- Agregar / editar item (solo admin) ----------
